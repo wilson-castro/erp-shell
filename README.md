@@ -36,6 +36,6 @@ A base inteira (subir, verificar ponta a ponta) é operada pelo repositório pri
 
 ## Regras
 
-Invariantes do projeto: `docs/design-bff/comum/AGENTS.md` no repositório principal. Nesta
+Invariantes do projeto: `AGENTS.md` no repositório principal. Nesta
 aplicação, o que mais importa: toda página chama `exigirModulo` e toda Server Action usa
 `acaoProtegida`; domínio só por `nucleo.destino(...)`, nunca `fetch` direto.
