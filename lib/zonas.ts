@@ -36,6 +36,12 @@ export function carregarZonas(
   const zonasValidas: DefinicaoDeZona[] = []
 
   for (const [id, origemPadrao] of Object.entries(mapaEntrada)) {
+    // Só minúsculas, dígitos e hífen: a busca de zona compara o caminho em minúsculas, e um id
+    // com maiúscula nunca casaria, deixando o caminho sem sonda (reviewer_shell_2). Falha no
+    // boot, não na requisição.
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+      throw new Error(`zonas.json: id de zona invalido "${id}" (use minusculas, digitos e hifen)`)
+    }
     if (ehRotaReservada(`/${id}`)) {
       continue
     }

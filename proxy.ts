@@ -43,7 +43,9 @@ function aplicarCsp(req: NextRequest, nonce: string): NextResponse {
 
   const res = NextResponse.next({ request: { headers } })
   if (flash) {
-    res.cookies.set('__Host-flash', '', { path: '/', maxAge: 0 })
+    // __Host- exige Secure também na remoção; sem ele o navegador ignora o Set-Cookie e o
+    // toast volta a cada página do shell (reviewer_shell_2). Mesmos atributos do criarProxy.
+    res.cookies.set('__Host-flash', '', { path: '/', secure: true, sameSite: 'lax', maxAge: 0 })
   }
   res.headers.set('x-nonce', nonce)
   res.headers.set(

@@ -111,3 +111,11 @@ test('C1: prefixo estatico em qualquer caixa continua sendo asset, nao pagina', 
   const d = await decidirAcaoDoProxy({ caminho: '/ZONA2-STATIC/a.js', temCookieSessao: false }, saudavel, zonas)
   assert.equal(d.acao, 'zona-estatica')
 })
+
+test('reviewer_shell_2: id de zona com maiuscula ou caractere estranho falha no boot, nao abre o C1', async () => {
+  const { carregarZonas } = await import('../lib/zonas.ts')
+  for (const id of ['ZonaA', 'zona_a', 'zona a', 'zona/a', '-zona', '']) {
+    assert.throws(() => carregarZonas({ [id]: 'http://127.0.0.1:3009' }, {}), /zona/i, JSON.stringify(id))
+  }
+  assert.equal(carregarZonas({ 'zona-a2': 'http://127.0.0.1:3009' }, {})[0].id, 'zona-a2')
+})
