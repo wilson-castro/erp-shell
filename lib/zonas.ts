@@ -19,8 +19,8 @@ export interface DefinicaoDeZona {
 }
 
 export function ehRotaReservada(caminho: string): boolean {
-  if (caminho === '/' || caminho === '') return true
-  const semQuery = caminho.split('?')[0]
+  if (!caminho || caminho === '/') return true
+  const semQuery = caminho.split('?')[0] ?? ''
   const normalizado = semQuery.startsWith('/') ? semQuery : `/${semQuery}`
   return ROTAS_RESERVADAS.some((reservada) =>
     reservada === '/'
@@ -68,7 +68,7 @@ export function encontrarZonaPorCaminho(
   caminho: string,
   zonas: readonly DefinicaoDeZona[] = ZONAS
 ): DefinicaoDeZona | null {
-  const semQuery = caminho.split('?')[0]
+  const semQuery = caminho.split('?')[0] ?? ''
   const normalizado = semQuery.startsWith('/') ? semQuery : `/${semQuery}`
   for (const zona of zonas) {
     if (normalizado === zona.prefixo || normalizado.startsWith(`${zona.prefixo}/`)) {

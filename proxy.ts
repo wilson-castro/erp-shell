@@ -11,7 +11,7 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
 
   switch (decisao.acao) {
     case 'publico':
-      return aplicarCsp(NextResponse.next(), decisao.nonce)
+      return aplicarCsp(req, decisao.nonce)
 
     case 'telemetria':
     case 'zona-estatica':
@@ -23,18 +23,20 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
         headers: decisao.headers,
       })
 
-    case 'redirecionar-login':
-      return new NextResponse(null, {
-        status: 307,
-        headers: { Location: decisao.destino },
-      })
+    case 'redirecionar-login': {
+      const urlAbsoluta = new URL(decisao.destino, req.url)
+      return NextResponse.redirect(urlAbsoluta, 307)
+    }
 
     case 'prosseguir':
-      return aplicarCsp(NextResponse.next(), decisao.nonce)
+      return aplicarCsp(req, decisao.nonce)
   }
 }
 
-function aplicarCsp(res: NextResponse, nonce: string): NextResponse {
+function aplicarCsp(req: NextRequest, nonce: string): NextResponse {
+  const headers = new Headers(req.headers)
+  headers.set('x-nonce', nonce)
+  const res = NextResponse.next({ request: { headers } })
   res.headers.set('x-nonce', nonce)
   res.headers.set(
     'Content-Security-Policy',

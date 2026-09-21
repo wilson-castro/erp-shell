@@ -16,20 +16,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     tamanhoBytes = corpo.byteLength
   }
 
+  const sub = sessao?.sub
   const resultado = processarLoteDeTelemetria({
     sessaoValida: Boolean(sessao),
-    sub: sessao?.sub,
+    ...(sub !== undefined ? { sub } : {}),
     tamanhoBytes,
   })
 
   if (resultado.status !== 204) {
+    const init: ResponseInit = {
+      status: resultado.status,
+      ...(resultado.headers ? { headers: resultado.headers } : {}),
+    }
     return new NextResponse(
       resultado.status === 413 ? 'Payload Too Large' : 'Too Many Requests',
-      { status: resultado.status, headers: resultado.headers }
+      init
     )
   }
 
-  // Se houver sessão válida e payload aceito, repassa opcionalmente para coletor upstream
   const upstream = process.env.OTEL_EXPORTER_OTLP_ENDPOINT
   if (upstream && corpo) {
     try {
@@ -42,7 +46,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         signal: AbortSignal.timeout(3000),
       })
     } catch {
-      // Repasse assíncrono/silencioso
+      // Repasse silencioso
     }
   }
 
