@@ -2,54 +2,39 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { nucleo } from '@/lib/nucleo'
 import {
   TAMANHO_MAXIMO_BYTES,
+  lerComLimite,
   processarLoteDeTelemetria,
 } from '@/lib/telemetria'
 
+const vazia = (status: number, headers?: Record<string, string>) =>
+  new NextResponse(null, { status, ...(headers ? { headers } : {}) })
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // Sem sessão: 204 e descarta, sem ler o corpo e sem repassar (a rota não exige cookie no proxy).
   const sessao = await nucleo.sessao.atual().catch(() => null)
-  const tamanhoCabecalho = req.headers.get('content-length')
-  let tamanhoBytes = tamanhoCabecalho ? Number(tamanhoCabecalho) : 0
+  if (!sessao) return vazia(204)
 
-  let corpo: ArrayBuffer | null = null
-  if (tamanhoBytes <= TAMANHO_MAXIMO_BYTES) {
-    corpo = await req.arrayBuffer()
-    tamanhoBytes = corpo.byteLength
-  }
+  const declarado = Number(req.headers.get('content-length'))
+  if (Number.isFinite(declarado) && declarado > TAMANHO_MAXIMO_BYTES) return vazia(413)
+  const corpo = await lerComLimite(req.body, TAMANHO_MAXIMO_BYTES)
+  if (corpo === null) return vazia(413)
 
-  const sub = sessao?.sub
   const resultado = processarLoteDeTelemetria({
-    sessaoValida: Boolean(sessao),
-    ...(sub !== undefined ? { sub } : {}),
-    tamanhoBytes,
+    sessaoValida: true,
+    sub: sessao.sub,
+    tamanhoBytes: corpo.byteLength,
   })
+  if (resultado.status !== 204) return vazia(resultado.status, resultado.headers)
 
-  if (resultado.status !== 204) {
-    const init: ResponseInit = {
-      status: resultado.status,
-      ...(resultado.headers ? { headers: resultado.headers } : {}),
-    }
-    return new NextResponse(
-      resultado.status === 413 ? 'Payload Too Large' : 'Too Many Requests',
-      init
-    )
-  }
-
-  const upstream = process.env.OTEL_EXPORTER_OTLP_ENDPOINT
-  if (upstream && corpo) {
+  // OTLP/HTTP em JSON. O repasse passa pelo registro de destinos, que serializa JSON.
+  let lote: unknown
+  try { lote = JSON.parse(new TextDecoder().decode(corpo)) } catch { return vazia(400) }
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
     try {
-      const despachar = globalThis['fetch']
-      await despachar(`${upstream}/v1/traces`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': req.headers.get('content-type') ?? 'application/json',
-        },
-        body: corpo,
-        signal: AbortSignal.timeout(3000),
-      })
+      await nucleo.destino('coletor-otel').post('/v1/traces', { corpo: lote })
     } catch {
-      // Repasse silencioso
+      // coletor fora não derruba a página de quem mandou o lote
     }
   }
-
-  return new NextResponse(null, { status: 204 })
+  return vazia(204)
 }

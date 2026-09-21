@@ -69,7 +69,10 @@ export function encontrarZonaPorCaminho(
   zonas: readonly DefinicaoDeZona[] = ZONAS
 ): DefinicaoDeZona | null {
   const semQuery = caminho.split('?')[0] ?? ''
-  const normalizado = semQuery.startsWith('/') ? semQuery : `/${semQuery}`
+  // O rewrite do Next casa o prefixo sem diferenciar maiúsculas: /ZONA2 chega à zona 2. A
+  // busca aqui tem de casar igual, senão o caminho em outra caixa escapa da sonda (gate
+  // "Shell novo", challenger_shell_1 C1).
+  const normalizado = (semQuery.startsWith('/') ? semQuery : `/${semQuery}`).toLowerCase()
   for (const zona of zonas) {
     if (normalizado === zona.prefixo || normalizado.startsWith(`${zona.prefixo}/`)) {
       return zona

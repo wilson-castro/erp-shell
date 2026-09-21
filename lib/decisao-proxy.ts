@@ -70,7 +70,7 @@ export async function decidirAcaoDoProxy(
       }
     }
 
-    if (caminho.startsWith(zona.prefixoEstatico)) {
+    if (caminho.toLowerCase().startsWith(zona.prefixoEstatico)) {
       return { acao: 'zona-estatica' }
     }
 

@@ -5,6 +5,7 @@ import {
   TAMANHO_MAXIMO_BYTES,
   LIMITE_LOTES_POR_MINUTO,
   processarLoteDeTelemetria,
+  lerComLimite,
 } from '../lib/telemetria.ts'
 
 test('telemetria: limitador permite ate 60 lotes por minuto por usuario', () => {
@@ -83,4 +84,39 @@ test('processarLoteDeTelemetria: taxa excedida retorna 429 com Retry-After', () 
   assert.equal(r1.status, 204)
   assert.equal(r2.status, 429)
   assert.equal(r2.headers?.['Retry-After'], '60')
+})
+
+const fluxo = (...pedacos) => new ReadableStream({
+  start(c) { for (const p of pedacos) c.enqueue(new Uint8Array(p)); c.close() },
+})
+
+test('lerComLimite: le o corpo inteiro quando cabe no limite', async () => {
+  const corpo = await lerComLimite(fluxo(100, 200), 1024)
+  assert.equal(corpo.byteLength, 300)
+})
+
+test('lerComLimite: para de ler e devolve null assim que passa do limite (sem Content-Length)', async () => {
+  let puxados = 0
+  const infinito = new ReadableStream({ pull(c) { puxados++; c.enqueue(new Uint8Array(64 * 1024)) } })
+  assert.equal(await lerComLimite(infinito, 256 * 1024), null)
+  assert.ok(puxados <= 6, `leu ${puxados} pedacos de 64 KB para um limite de 256 KB`)
+})
+
+test('lerComLimite: corpo ausente e corpo vazio', async () => {
+  assert.equal((await lerComLimite(null, 10)).byteLength, 0)
+  assert.equal((await lerComLimite(fluxo(), 10)).byteLength, 0)
+})
+
+test('limitador: entradas de janela vencida sao descartadas, o mapa nao cresce sem limite', () => {
+  const limitador = new LimitadorDeTaxa(60, 60_000, 100)
+  for (let i = 0; i < 1000; i++) limitador.consumir(`u${i}`, i * 1000)   // cada um numa janela que vence
+  assert.ok(limitador.tamanho() <= 100, `mapa com ${limitador.tamanho()} entradas`)
+})
+
+test('limitador: descartar vencidos nao zera quem ainda esta na janela', () => {
+  const limitador = new LimitadorDeTaxa(2, 60_000, 3)
+  assert.equal(limitador.consumir('ana', 0), true)
+  assert.equal(limitador.consumir('ana', 1), true)
+  for (let i = 0; i < 10; i++) limitador.consumir(`u${i}`, 2)            // força a limpeza
+  assert.equal(limitador.consumir('ana', 3), false, 'a limpeza zerou a contagem de quem estava na janela')
 })

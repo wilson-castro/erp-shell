@@ -26,6 +26,16 @@ export const nucleo = criarNucleoDoShell({
       origem: process.env.ACESSO_URL ?? 'http://127.0.0.1:4010',
       caminhos: ['/v1/modulos-permitidos'], metodos: ['GET'], credencial: 'usuario', timeoutMs: 1000,
     },
+    // Coletor OTLP: só existe se configurado. O gateway /api/otel repassa por aqui, não por
+    // `fetch` direto, para o repasse ter allowlist, timeout e nenhum redirecionamento (N8).
+    ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+      ? {
+          'coletor-otel': {
+            origem: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+            caminhos: ['/v1/traces'], metodos: ['POST'] as const, credencial: 'nenhuma' as const, timeoutMs: 3000,
+          },
+        }
+      : {}),
   },
   escrita: {
     store: sessaoArquivoDeEscrita({ dir: SESSAO_DIR }),

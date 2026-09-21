@@ -34,12 +34,10 @@ export const modulosPermitidos = cache(async () => {
 
 /** Módulo restrito não revela que existe: 404, sem página de "sem acesso" (D6, invariante 8). */
 export async function exigirModulo(id: string): Promise<void> {
-  try {
-    if (!(await modulosPermitidos()).some((m) => m.id === id)) notFound()
-  } catch (e) {
-    if (e instanceof ErroDeAplicacao) return
-    throw e
-  }
+  // Fail-closed: sem confirmar o módulo, a página não renderiza. Se a gestão de acesso falhar,
+  // o erro sobe e o layout mostra "Serviço indisponível"; engolir o erro aqui entregava o
+  // conteúdo do módulo no payload RSC (gate "Shell novo", auditor_shell_1 V1).
+  if (!(await modulosPermitidos()).some((m) => m.id === id)) notFound()
 }
 
 /**

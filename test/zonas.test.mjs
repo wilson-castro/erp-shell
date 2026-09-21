@@ -93,3 +93,21 @@ test('encontrarZonaPorCaminho: resolve a zona correspondente para paginas e asse
   assert.equal(encontrarZonaPorCaminho('/login'), null)
   assert.equal(encontrarZonaPorCaminho('/'), null)
 })
+
+test('C1: busca de zona ignora maiusculas, como o rewrite do Next (senao /ZONA2 escapa da sonda)', async () => {
+  const { encontrarZonaPorCaminho, carregarZonas } = await import('../lib/zonas.ts')
+  const zonas = carregarZonas({ zona2: 'http://127.0.0.1:3002' }, {})
+  for (const c of ['/ZONA2', '/Zona2/x', '/zONA2', '/ZONA2-STATIC/a.js', '/Zona2-Static/b.css']) {
+    assert.equal(encontrarZonaPorCaminho(c, zonas)?.id, 'zona2', c)
+  }
+  for (const c of ['/zona20', '/zona', '/xzona2', '/ZONA2X']) assert.equal(encontrarZonaPorCaminho(c, zonas), null, c)
+})
+
+test('C1: prefixo estatico em qualquer caixa continua sendo asset, nao pagina', async () => {
+  const { decidirAcaoDoProxy } = await import('../lib/decisao-proxy.ts')
+  const { carregarZonas } = await import('../lib/zonas.ts')
+  const zonas = carregarZonas({ zona2: 'http://127.0.0.1:3002' }, {})
+  const saudavel = { verificar: async () => true, limpar() {} }
+  const d = await decidirAcaoDoProxy({ caminho: '/ZONA2-STATIC/a.js', temCookieSessao: false }, saudavel, zonas)
+  assert.equal(d.acao, 'zona-estatica')
+})

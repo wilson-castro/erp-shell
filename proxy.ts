@@ -48,8 +48,12 @@ function aplicarCsp(req: NextRequest, nonce: string): NextResponse {
   res.headers.set('x-nonce', nonce)
   res.headers.set(
     'Content-Security-Policy',
+    // A mesma política do `criarProxy` do núcleo (reviewer_shell_1, achado 2): sem
+    // `form-action`, que não herda de `default-src`, e sem `img-src`, o shell ficava mais frouxo
+    // que as zonas. Tirar esta cópia é o item C2 de PROPOSTA-REORGANIZACAO.md.
     `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; ` +
-    `style-src 'self' 'nonce-${nonce}'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`
+    `style-src 'self' 'nonce-${nonce}'; img-src 'self' data:; object-src 'none'; ` +
+    `base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
   )
   return res
 }
