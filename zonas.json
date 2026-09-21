@@ -1,0 +1,5 @@
+{
+  "zona1": "http://localhost:3001",
+  "zona2": "http://localhost:3002",
+  "acesso": "http://localhost:3003"
+}
