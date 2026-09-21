@@ -1,7 +1,7 @@
 import 'server-only'
 import { cookies } from 'next/headers'
 import { acessoHttp, sessaoArquivo } from '@erp/nucleo'
-// Só o shell importa este subpath (invariante 15); a verificação estática de repos/verificacao reprova o import numa zona.
+// Só o shell importa este subpath (invariante 15); a verificação estática de base/verificacao reprova o import numa zona.
 import { criarNucleoDoShell, identidadeDev, sessaoArquivoDeEscrita } from '@erp/nucleo/shell'
 
 const SESSAO_DIR = process.env.SESSAO_DIR ?? '/tmp/erp-sessoes'
