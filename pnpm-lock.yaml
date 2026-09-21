@@ -15,8 +15,8 @@ importers:
         specifier: 0.3.0
         version: 0.3.0(react@19.2.8)
       '@erp/nucleo':
-        specifier: 0.3.1
-        version: 0.3.1(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)
+        specifier: 0.3.2
+        version: 0.3.2(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)
       next:
         specifier: 16.3.4
         version: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -49,15 +49,15 @@ packages:
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
 
   '@erp/contratos@0.2.1':
-    resolution: {integrity: sha512-t4pjbg3NSd8MbhrKvmfM7dS98WmL30W55Ckz/9yF7eE5Ej2hXgoZSWyLCJM0Lz13MliHgwi1sAF06sRQt+ZDKg==, tarball: http://localhost:4873/@erp/contratos/-/contratos-0.2.1.tgz}
+    resolution: {integrity: sha512-ty100oy1VqTdLb3IZfXzTjDvgwxAOjGyImjvsnQTgof6sUShiB2KQPVvy9qh+mj204FMkZUsVwxStgBww7OA0g==, tarball: http://localhost:4873/@erp/contratos/-/contratos-0.2.1.tgz}
 
   '@erp/moldura@0.3.0':
-    resolution: {integrity: sha512-RL3E4IezcjyTyLYpSiLe0brSa5BAZDBqM7xA+vDjsshVceRNDggO+9BzIS9sc09HtGrzJOYMrgBINrVY9rMoBw==, tarball: http://localhost:4873/@erp/moldura/-/moldura-0.3.0.tgz}
+    resolution: {integrity: sha512-r+CgvMpKfaFA22bJuj2LtItChUiAJsV1AwNbvIFpZLFk0lpl7+VtN5AD+9vzvp0XQjahkNcXKn6idnK7CUIaow==, tarball: http://localhost:4873/@erp/moldura/-/moldura-0.3.0.tgz}
     peerDependencies:
       react: ^19.0.0
 
-  '@erp/nucleo@0.3.1':
-    resolution: {integrity: sha512-+DhOJ8ZQ1p9biHz1kGu0Z7hji+fNdQKDTYhcqIRuUvgHWiHHJopmFN/28dTsentUPpzu8NYYQ/pCEh1l/e/sWA==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.3.1.tgz}
+  '@erp/nucleo@0.3.2':
+    resolution: {integrity: sha512-cDbVHXBWstWu5FqlKkJjYHzCdn07Nsrs47sYcfKcZqaIi99FhEE/25nwcgceQLu8CfFz2Lp3RfQ0QntNRrzRBw==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.3.2.tgz}
     peerDependencies:
       next: ^16.0.0
       server-only: ^0.0.1
@@ -414,7 +414,7 @@ snapshots:
     dependencies:
       react: 19.2.8
 
-  '@erp/nucleo@0.3.1(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)':
+  '@erp/nucleo@0.3.2(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)':
     dependencies:
       '@erp/contratos': 0.2.1
       next: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
