@@ -57,7 +57,7 @@ packages:
       react: ^19.0.0
 
   '@erp/nucleo@0.3.1':
-    resolution: {integrity: sha512-gSLZMFyUhOkjrcFWdYg9+k9H0+wkl/zP7kkVllPerhUmrPH9B5bvzBjmpZZGFqyp685n4PlUbK6r8WGuR+Ip1g==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.3.1.tgz}
+    resolution: {integrity: sha512-+DhOJ8ZQ1p9biHz1kGu0Z7hji+fNdQKDTYhcqIRuUvgHWiHHJopmFN/28dTsentUPpzu8NYYQ/pCEh1l/e/sWA==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.3.1.tgz}
     peerDependencies:
       next: ^16.0.0
       server-only: ^0.0.1

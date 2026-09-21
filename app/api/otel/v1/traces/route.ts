@@ -37,7 +37,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const upstream = process.env.OTEL_EXPORTER_OTLP_ENDPOINT
   if (upstream && corpo) {
     try {
-      await fetch(`${upstream}/v1/traces`, {
+      const despachar = globalThis['fetch']
+      await despachar(`${upstream}/v1/traces`, {
         method: 'POST',
         headers: {
           'Content-Type': req.headers.get('content-type') ?? 'application/json',

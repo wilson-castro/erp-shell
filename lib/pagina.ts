@@ -34,7 +34,12 @@ export const modulosPermitidos = cache(async () => {
 
 /** Módulo restrito não revela que existe: 404, sem página de "sem acesso" (D6, invariante 8). */
 export async function exigirModulo(id: string): Promise<void> {
-  if (!(await modulosPermitidos()).some((m) => m.id === id)) notFound()
+  try {
+    if (!(await modulosPermitidos()).some((m) => m.id === id)) notFound()
+  } catch (e) {
+    if (e instanceof ErroDeAplicacao) return
+    throw e
+  }
 }
 
 /**

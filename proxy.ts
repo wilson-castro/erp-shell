@@ -36,7 +36,15 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
 function aplicarCsp(req: NextRequest, nonce: string): NextResponse {
   const headers = new Headers(req.headers)
   headers.set('x-nonce', nonce)
+  headers.set('x-erp-caminho', req.nextUrl.pathname)
+  headers.delete('x-erp-flash')
+  const flash = req.cookies.get('__Host-flash')?.value
+  if (flash) headers.set('x-erp-flash', flash)
+
   const res = NextResponse.next({ request: { headers } })
+  if (flash) {
+    res.cookies.set('__Host-flash', '', { path: '/', maxAge: 0 })
+  }
   res.headers.set('x-nonce', nonce)
   res.headers.set(
     'Content-Security-Policy',
