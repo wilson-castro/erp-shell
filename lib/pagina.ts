@@ -2,8 +2,9 @@ import 'server-only'
 import { cache } from 'react'
 import { cookies, headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
-import { SessaoInvalida } from '@erp/nucleo'
-import { lerFlash, moduloAtivo, NOME_COOKIE_FLASH, serializarFlash, type Toast } from '@erp/moldura'
+import { ErroDeAplicacao, SessaoInvalida } from '@erp/nucleo'
+import { MENSAGENS } from '@erp/contratos'
+import { lerFlash, moduloAtivo, NOME_COOKIE_FLASH, serializarFlash, type ResultadoDeAcao, type Toast } from '@erp/moldura'
 import { nucleo } from './nucleo'
 
 /** Posto pelo proxy do núcleo; layouts não recebem o caminho de outra forma. */
@@ -41,18 +42,56 @@ export async function dadosDaMoldura() {
   return { usuario: { nome: sessao.nome }, menu, flash, ...(ativo ? { ativo } : {}) }
 }
 
-/**
- * Primeiro bloco de toda Server Action (invariante 5): ela é endpoint público, e nenhum
- * layout roda antes dela. Sessão e módulo são reverificados aqui.
- */
-export async function exigirNaAcao(modulo: string): Promise<void> {
-  await nucleo.sessao.exigir()
-  await nucleo.acesso.exigirModulo(modulo)
-}
-
 /** Toast que sobrevive à troca de documento, inclusive para outra zona. */
 export async function flash(t: Toast): Promise<void> {
   (await cookies()).set(NOME_COOKIE_FLASH, serializarFlash(t), {
     path: '/', secure: true, sameSite: 'lax', maxAge: 60,
   })
+}
+
+/** Hosts do shell que servem esta aplicação ao navegador; os mesmos de `allowedOrigins`. */
+const HOSTS_DO_SHELL = (process.env.SHELL_HOSTS ?? 'localhost:3000').split(',')
+
+async function origemPermitida(): Promise<boolean> {
+  const h = await headers()
+  const site = h.get('sec-fetch-site')
+  if (site && site !== 'same-origin') return false
+  try {
+    return HOSTS_DO_SHELL.includes(new URL(h.get('origin') ?? '').host)
+  } catch {
+    return false   // sem Origin ou Origin inválido: recusa
+  }
+}
+
+/**
+ * Envelope de toda Server Action. Primeiro bloco: sessão e módulo reverificados
+ * (invariantes 5 e 16) — a action é endpoint público e nenhum layout roda antes dela.
+ * Nunca lança para o cliente: todo erro vira `{ codigo }` num toast (invariante 12) e um
+ * destino, que o `FormularioDeAcao` abre com `location.assign`. Nunca usa `redirect()`:
+ * com JavaScript, o Next buscaria o destino no processo desta zona (limitação 11).
+ */
+export async function acaoProtegida(
+  modulo: string,
+  voltar: string,
+  corpo: () => Promise<{ toast: Toast; destino: string }>,
+): Promise<ResultadoDeAcao> {
+  // A checagem de origem do Next deixa passar requisição SEM `Origin` (medido pelo
+  // challenger_base_1: curl sem Origin executou a action). Aqui ela é obrigatória.
+  if (!(await origemPermitida())) return { destino: '/' }
+  try {
+    await nucleo.sessao.exigir()
+    await nucleo.acesso.exigirModulo(modulo)
+  } catch (e) {
+    if (e instanceof SessaoInvalida) return { destino: `/login?de=${encodeURIComponent(voltar)}` }
+    await flash({ tipo: 'erro', texto: MENSAGENS.OPERACAO_NAO_PERMITIDA })
+    return { destino: '/' }
+  }
+  try {
+    const { toast, destino } = await corpo()
+    await flash(toast)
+    return { destino }
+  } catch (e) {
+    await flash({ tipo: 'erro', texto: MENSAGENS[e instanceof ErroDeAplicacao ? e.codigo : 'ERRO_INTERNO'] })
+    return { destino: voltar }
+  }
 }

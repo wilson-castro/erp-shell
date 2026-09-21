@@ -1,4 +1,4 @@
-import { ATORES_DE_DESENVOLVIMENTO } from '@erp/nucleo'
+import { ATORES_DE_DESENVOLVIMENTO } from '@erp/nucleo/shell'
 
 export default async function Login({ searchParams }: { searchParams: Promise<{ de?: string }> }) {
   const { de } = await searchParams

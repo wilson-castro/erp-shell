@@ -1,5 +1,8 @@
 // Registra o manifesto desta aplicação no domínio de gestão de acesso. Passo de deploy,
 // não de runtime: roda antes de a aplicação receber tráfego, e de novo a cada versão.
+// Exceção documentada ao invariante 4: roda fora do Next (sem `server-only`), então usa
+// `fetch` com as mesmas travas do registro de destinos — origem fixa, sem seguir
+// redirecionamento, com timeout.
 import manifesto from '../acesso.manifesto.ts'
 
 const url = process.env.ACESSO_URL ?? 'http://127.0.0.1:4010'
@@ -10,6 +13,8 @@ const r = await fetch(`${url}/v1/manifestos`, {
   method: 'POST',
   headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
   body: JSON.stringify(manifesto),
+  redirect: 'manual',
+  signal: AbortSignal.timeout(5000),
 })
 if (r.status !== 204) {
   console.error(`registro do manifesto de ${manifesto.zona} falhou: HTTP ${r.status}`)

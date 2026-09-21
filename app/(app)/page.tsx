@@ -8,14 +8,15 @@ export default async function Inicio() {
   const sessao = await sessaoDaPagina()
   const [modulos, avisos] = await Promise.all([
     modulosPermitidos(),
-    nucleo.destino('plataforma').get<Aviso[]>('/v1/avisos').then((r) => r.body ?? []),
+    // avisos são acessórios: domínio da plataforma fora apaga o bloco, não a página
+    nucleo.destino('plataforma').get<Aviso[]>('/v1/avisos').then((r) => r.body ?? [], () => null),
   ])
   return (
     <>
       <h1>Olá, {sessao.nome}</h1>
       <section aria-labelledby="avisos">
         <h2 id="avisos">Avisos da plataforma</h2>
-        <ul>{avisos.map((a) => <li key={a.id}>{a.texto}</li>)}</ul>
+        {avisos ? <ul>{avisos.map((a) => <li key={a.id}>{a.texto}</li>)}</ul> : <p>Avisos indisponíveis no momento.</p>}
       </section>
       <section aria-labelledby="modulos">
         <h2 id="modulos">Seus módulos</h2>

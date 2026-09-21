@@ -1,17 +1,19 @@
 import 'server-only'
 import { cookies } from 'next/headers'
-import { acessoHttp, criarNucleo, identidadeDev, sessaoArquivo } from '@erp/nucleo'
+import { acessoHttp, sessaoArquivo } from '@erp/nucleo'
+// Só o shell importa este subpath (invariante 15); o lint das zonas o recusa.
+import { criarNucleoDoShell, identidadeDev, sessaoArquivoDeEscrita } from '@erp/nucleo/shell'
 
 const SESSAO_DIR = process.env.SESSAO_DIR ?? '/tmp/erp-sessoes'
 export const NOME_COOKIE_SESSAO = '__Host-session'
 
 /**
  * Raiz de composição do shell. Só configuração, lida do ambiente. O shell é a ÚNICA
- * aplicação com `escrita`: grava e encerra sessão; as zonas só leem (N3).
+ * aplicação com `criarNucleoDoShell`: grava e encerra sessão; as zonas só leem (N3).
  */
-export const nucleo = criarNucleo({
+export const nucleo = criarNucleoDoShell({
   app: 'shell',
-  sessao: sessaoArquivo({ dir: SESSAO_DIR, modo: 'leitura' }),
+  sessao: sessaoArquivo({ dir: SESSAO_DIR }),
   lerCookieDeSessao: async () => (await cookies()).get(NOME_COOKIE_SESSAO)?.value,
   acesso: acessoHttp({ destino: 'gestao-acesso' }),
   destinos: {
@@ -26,7 +28,7 @@ export const nucleo = criarNucleo({
     },
   },
   escrita: {
-    store: sessaoArquivo({ dir: SESSAO_DIR, modo: 'escrita' }),
+    store: sessaoArquivoDeEscrita({ dir: SESSAO_DIR }),
     identidade: identidadeDev(),
   },
 })
