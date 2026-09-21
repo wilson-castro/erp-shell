@@ -5,6 +5,9 @@ import { notFound, redirect } from 'next/navigation'
 import { ErroDeAplicacao, SessaoInvalida } from '@erp/nucleo'
 import { MENSAGENS } from '@erp/contratos'
 import { lerFlash, moduloAtivo, NOME_COOKIE_FLASH, serializarFlash, type ResultadoDeAcao, type Toast } from '@erp/moldura'
+
+/** O proxy do núcleo consome o cookie de flash e o entrega por este cabeçalho (uma vez só). */
+const CABECALHO_FLASH = 'x-erp-flash'
 import { nucleo } from './nucleo'
 
 /** Posto pelo proxy do núcleo; layouts não recebem o caminho de outra forma. */
@@ -34,12 +37,20 @@ export async function exigirModulo(id: string): Promise<void> {
   if (!(await modulosPermitidos()).some((m) => m.id === id)) notFound()
 }
 
+/**
+ * Sem a gestão de acesso ninguém entra em módulo nenhum. O layout mostra a moldura com a
+ * mensagem de indisponibilidade no HTML do servidor, em vez de lançar: o `global-error` do
+ * Next só aparece depois da hidratação, e sem JavaScript a página ficaria em branco.
+ */
 export async function dadosDaMoldura() {
   const sessao = await sessaoDaPagina()
-  const menu = await modulosPermitidos()
-  const flash = lerFlash((await cookies()).get(NOME_COOKIE_FLASH)?.value)
-  const ativo = moduloAtivo(menu, await caminhoAtual())
-  return { usuario: { nome: sessao.nome }, menu, flash, ...(ativo ? { ativo } : {}) }
+  const menu = await modulosPermitidos().catch((e: unknown) => {
+    if (e instanceof ErroDeAplicacao) return null
+    throw e   // redirect para o login e qualquer erro de programação seguem adiante
+  })
+  const flash = lerFlash((await headers()).get(CABECALHO_FLASH))
+  const ativo = menu ? moduloAtivo(menu, await caminhoAtual()) : undefined
+  return { usuario: { nome: sessao.nome }, menu: menu ?? [], flash, indisponivel: menu === null, ...(ativo ? { ativo } : {}) }
 }
 
 /** Toast que sobrevive à troca de documento, inclusive para outra zona. */

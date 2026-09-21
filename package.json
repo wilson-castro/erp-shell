@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@erp/contratos": "0.2.1",
-    "@erp/moldura": "0.2.0",
-    "@erp/nucleo": "0.3.0",
+    "@erp/moldura": "0.3.0",
+    "@erp/nucleo": "0.3.1",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",

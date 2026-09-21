@@ -12,11 +12,11 @@ importers:
         specifier: 0.2.1
         version: 0.2.1
       '@erp/moldura':
-        specifier: 0.2.0
-        version: 0.2.0(react@19.2.8)
-      '@erp/nucleo':
         specifier: 0.3.0
-        version: 0.3.0(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)
+        version: 0.3.0(react@19.2.8)
+      '@erp/nucleo':
+        specifier: 0.3.1
+        version: 0.3.1(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)
       next:
         specifier: 16.3.4
         version: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -51,13 +51,13 @@ packages:
   '@erp/contratos@0.2.1':
     resolution: {integrity: sha512-ty100oy1VqTdLb3IZfXzTjDvgwxAOjGyImjvsnQTgof6sUShiB2KQPVvy9qh+mj204FMkZUsVwxStgBww7OA0g==, tarball: http://localhost:4873/@erp/contratos/-/contratos-0.2.1.tgz}
 
-  '@erp/moldura@0.2.0':
-    resolution: {integrity: sha512-HJVs29MQjSP0OzWGNgcBAOih4kNk7wq3ckN30tcLrQRu2OMj5wGfMQFkWCkB/dI6JCOrS6S3yIF7E5TquFc2fQ==, tarball: http://localhost:4873/@erp/moldura/-/moldura-0.2.0.tgz}
+  '@erp/moldura@0.3.0':
+    resolution: {integrity: sha512-r+CgvMpKfaFA22bJuj2LtItChUiAJsV1AwNbvIFpZLFk0lpl7+VtN5AD+9vzvp0XQjahkNcXKn6idnK7CUIaow==, tarball: http://localhost:4873/@erp/moldura/-/moldura-0.3.0.tgz}
     peerDependencies:
       react: ^19.0.0
 
-  '@erp/nucleo@0.3.0':
-    resolution: {integrity: sha512-XnggctPoFYI1/ER6KTI+ghKc7hoOYWGgraCL+7VyWKjCeLXQM636nmre8gt+KDI6d8j6O8o+VjOytbcZ0XdjkQ==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.3.0.tgz}
+  '@erp/nucleo@0.3.1':
+    resolution: {integrity: sha512-epx9mrFXtebokifg0H8ma/V1/rNjz5FOIeYS98GleisEvn3vmnTjHTHQzXVcw/5mzEmSKY9kdj+c3ST67IOhhw==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.3.1.tgz}
     peerDependencies:
       next: ^16.0.0
       server-only: ^0.0.1
@@ -410,11 +410,11 @@ snapshots:
 
   '@erp/contratos@0.2.1': {}
 
-  '@erp/moldura@0.2.0(react@19.2.8)':
+  '@erp/moldura@0.3.0(react@19.2.8)':
     dependencies:
       react: 19.2.8
 
-  '@erp/nucleo@0.3.0(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)':
+  '@erp/nucleo@0.3.1(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)':
     dependencies:
       '@erp/contratos': 0.2.1
       next: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
