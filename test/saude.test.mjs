@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { criarCacheSaudeZona } from '../lib/saude-zonas.ts'
 
-test('criarCacheSaudeZona: identifica zona saudavel quando fetch retorna status < 500', async () => {
+test('criarCacheSaudeZona: identifica zona saudavel quando a rota de saude responde 200', async () => {
   // Arrange
   let chamadas = 0
   const fetchFake = async () => {
@@ -97,10 +97,20 @@ test('U2: entrada "fora" tambem expira: a zona volta sem reiniciar o shell', asy
   assert.equal(await cache.verificar('http://z/zona2'), true)
 })
 
-test('U3: status >= 500 conta como fora; 307 (pagina que pede login) conta como no ar', async () => {
+test('U3 (auditor_b1_d1_2, L1): so 2xx da rota de saude e "no ar"; 404, 3xx e 5xx sao fora', async () => {
   const { criarCacheSaudeZona } = await import('../lib/saude-zonas.ts')
-  assert.equal(await criarCacheSaudeZona(1000, 500, async () => ({ status: 502 })).verificar('http://z/a'), false)
-  assert.equal(await criarCacheSaudeZona(1000, 500, async () => ({ status: 307 })).verificar('http://z/b'), true)
+  for (const [status, noAr] of [[200, true], [204, true], [404, false], [307, false], [301, false], [502, false], [500, false]]) {
+    assert.equal(await criarCacheSaudeZona(1000, 500, async () => ({ status })).verificar(`http://z/${status}`), noAr, String(status))
+  }
+})
+
+test('L3: a sonda nao segue redirecionamento, nao usa cache e tem timeout', async () => {
+  const { criarCacheSaudeZona } = await import('../lib/saude-zonas.ts')
+  let opcoes
+  await criarCacheSaudeZona(1000, 500, async (_u, o) => { opcoes = o; return { status: 200 } }).verificar('http://z/op')
+  assert.equal(opcoes.redirect, 'manual')
+  assert.equal(opcoes.cache, 'no-store')
+  assert.ok(opcoes.signal instanceof AbortSignal)
 })
 
 test('U4: zona travada e dada como fora em ~500 ms (timeout padrao da sonda)', { timeout: 3000 }, async () => {
@@ -113,7 +123,7 @@ test('U4: zona travada e dada como fora em ~500 ms (timeout padrao da sonda)', {
 })
 
 test('configuracao: lerNumeroPositivo aceita valores validos e lanca com formato invalido', async () => {
-  const { lerNumeroPositivo } = await import('../lib/saude-zonas.ts')
+  const { lerNumeroPositivo } = await import('../lib/configuracao.ts')
   assert.equal(lerNumeroPositivo(undefined, 1000, 'TESTE'), 1000)
   assert.equal(lerNumeroPositivo('', 1000, 'TESTE'), 1000)
   assert.equal(lerNumeroPositivo('2000', 1000, 'TESTE'), 2000)
@@ -121,4 +131,16 @@ test('configuracao: lerNumeroPositivo aceita valores validos e lanca com formato
   assert.throws(() => lerNumeroPositivo('-5', 1000, 'TESTE'), /configuracao invalida: TESTE/)
   assert.throws(() => lerNumeroPositivo('0', 1000, 'TESTE'), /configuracao invalida: TESTE/)
   assert.throws(() => lerNumeroPositivo('1.5', 1000, 'TESTE'), /configuracao invalida: TESTE/)
+})
+
+test('L2: parametros da sonda e da telemetria tem teto; acima dele, erro na subida', async () => {
+  const { lerNumeroPositivo } = await import('../lib/configuracao.ts')
+  assert.equal(lerNumeroPositivo('2000', 500, 'T', 2000), 2000)
+  assert.throws(() => lerNumeroPositivo('2001', 500, 'ERP_SONDA_TIMEOUT_MS', 2000), /ERP_SONDA_TIMEOUT_MS deve ser no maximo 2000/)
+  const { readFileSync } = await import('node:fs')
+  const fonte = (f) => readFileSync(new URL(`../lib/${f}`, import.meta.url), 'utf8')
+  assert.match(fonte('saude-zonas.ts'), /'ERP_SONDA_TTL_MS', 10_000\)/)
+  assert.match(fonte('saude-zonas.ts'), /'ERP_SONDA_TIMEOUT_MS', 2_000\)/)
+  assert.match(fonte('telemetria.ts'), /'ERP_TELEMETRIA_MAX_BYTES', 1024 \* 1024\)/)
+  assert.match(fonte('telemetria.ts'), /'ERP_TELEMETRIA_LOTES_POR_MINUTO', 600\)/)
 })

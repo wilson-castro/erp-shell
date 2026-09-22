@@ -1,19 +1,13 @@
+import { lerNumeroPositivo } from './configuracao.ts'
+
 export interface CacheSaudeZona {
   verificar(urlSaude: string): Promise<boolean>
   limpar(): void
 }
 
-export function lerNumeroPositivo(valor: string | undefined, padrao: number, nome: string): number {
-  if (valor === undefined || valor === '') return padrao
-  const n = Number(valor)
-  if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
-    throw new Error(`configuracao invalida: ${nome} deve ser inteiro positivo, recebeu "${valor}"`)
-  }
-  return n
-}
-
-export const TTL_SAUDE_PADRAO_MS = lerNumeroPositivo(process.env.ERP_SONDA_TTL_MS, 1000, 'ERP_SONDA_TTL_MS')
-export const TIMEOUT_PROBE_PADRAO_MS = lerNumeroPositivo(process.env.ERP_SONDA_TIMEOUT_MS, 500, 'ERP_SONDA_TIMEOUT_MS')
+// tetos: TTL longo manteria uma zona caída como "no ar"; timeout acima de 2 s quebra o 503 rápido (L7)
+export const TTL_SAUDE_PADRAO_MS = lerNumeroPositivo(process.env.ERP_SONDA_TTL_MS, 1000, 'ERP_SONDA_TTL_MS', 10_000)
+export const TIMEOUT_PROBE_PADRAO_MS = lerNumeroPositivo(process.env.ERP_SONDA_TIMEOUT_MS, 500, 'ERP_SONDA_TIMEOUT_MS', 2_000)
 
 interface EntradaCache {
   readonly saudavel: boolean
@@ -35,7 +29,9 @@ export function criarCacheSaudeZona(
         redirect: 'manual',
         cache: 'no-store',
       })
-      return res.status < 500
+      // a sonda pergunta a `/{zona}/api/health`, pública: só 2xx é "no ar". 404 é zona sem a rota
+      // (outro processo na porta), 3xx é quem responde não ser a zona (auditor_b1_d1_2, L1)
+      return res.status >= 200 && res.status < 300
     } catch {
       return false
     }

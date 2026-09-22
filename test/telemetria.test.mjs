@@ -123,7 +123,7 @@ test('limitador: descartar vencidos nao zera quem ainda esta na janela', () => {
 })
 
 test('configuracao: lerNumeroPositivo em telemetria valida numeros inteiros positivos', async () => {
-  const { lerNumeroPositivo } = await import('../lib/telemetria.ts')
+  const { lerNumeroPositivo } = await import('../lib/configuracao.ts')
   assert.equal(lerNumeroPositivo(undefined, 60, 'TESTE'), 60)
   assert.equal(lerNumeroPositivo('', 60, 'TESTE'), 60)
   assert.equal(lerNumeroPositivo('120', 60, 'TESTE'), 120)

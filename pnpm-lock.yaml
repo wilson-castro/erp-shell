@@ -15,8 +15,8 @@ importers:
         specifier: 0.5.0
         version: 0.5.0(react@19.2.8)
       '@erp/nucleo':
-        specifier: 0.9.1
-        version: 0.9.1(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)
+        specifier: 0.9.2
+        version: 0.9.2(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)
       next:
         specifier: 16.3.4
         version: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -62,8 +62,8 @@ packages:
     peerDependencies:
       react: ^19.0.0
 
-  '@erp/nucleo@0.9.1':
-    resolution: {integrity: sha512-ltTzQT2Dt1guaXXmGJfEN/8xvD9QdTlNRx/Uxk/Vyw/BT3kq+TEWeJCfrajnQ7avNh6vF6ObGIfMqjSgt4hI9A==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.9.1.tgz}
+  '@erp/nucleo@0.9.2':
+    resolution: {integrity: sha512-sKyMjtvGGCr6EHtMSJAjaT30La2mIhxzFIR3esRWNpsTN7qjWHQLxAtYnFlG33w6HKt993STOS1SGxqkmlgAhg==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.9.2.tgz}
     peerDependencies:
       next: ^16.0.0
       server-only: ^0.0.1
@@ -467,7 +467,7 @@ snapshots:
       '@erp/contratos': 0.2.1
       react: 19.2.8
 
-  '@erp/nucleo@0.9.1(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)':
+  '@erp/nucleo@0.9.2(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)':
     dependencies:
       '@erp/contratos': 0.4.0
       next: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
