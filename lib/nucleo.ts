@@ -1,8 +1,9 @@
 import 'server-only'
 import { cookies, headers } from 'next/headers'
-import { acessoHttp, sessaoArquivo } from '@erp/nucleo'
+import { acessoHttp, sessaoArquivo, sessaoRedis } from '@erp/nucleo'
 // Só o shell importa este subpath (invariante 15); a verificação estática de base/verificacao reprova o import numa zona.
-import { criarNucleoDoShell, identidadeDev, sessaoArquivoDeEscrita } from '@erp/nucleo/shell'
+import { criarNucleoDoShell, identidadeDev, sessaoArquivoDeEscrita, sessaoRedisDeEscrita } from '@erp/nucleo/shell'
+import { clienteRedis } from './redis'
 
 const SESSAO_DIR = process.env.SESSAO_DIR ?? '/tmp/erp-sessoes'
 export const NOME_COOKIE_SESSAO = '__Host-session'
@@ -13,7 +14,8 @@ export const NOME_COOKIE_SESSAO = '__Host-session'
  */
 export const nucleo = criarNucleoDoShell({
   app: 'shell',
-  sessao: sessaoArquivo({ dir: SESSAO_DIR }),
+  // REDIS_URL definido: Redis (showcase, produção); senão, arquivo de desenvolvimento
+  sessao: clienteRedis ? sessaoRedis({ cliente: clienteRedis }) : sessaoArquivo({ dir: SESSAO_DIR }),
   lerCookieDeSessao: async () => (await cookies()).get(NOME_COOKIE_SESSAO)?.value,
   // núcleo 8: o proxy pôs um traceparent na requisição; cada chamada ao domínio leva um filho
   lerTraceparent: async () => (await headers()).get('traceparent') ?? undefined,
@@ -40,7 +42,7 @@ export const nucleo = criarNucleoDoShell({
       : {}),
   },
   escrita: {
-    store: sessaoArquivoDeEscrita({ dir: SESSAO_DIR }),
+    store: clienteRedis ? sessaoRedisDeEscrita({ cliente: clienteRedis }) : sessaoArquivoDeEscrita({ dir: SESSAO_DIR }),
     identidade: identidadeDev(),
   },
 })
