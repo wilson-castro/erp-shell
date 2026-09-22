@@ -15,7 +15,8 @@ const paginas = criarPaginas(nucleo, {
   // Hosts do shell que servem esta aplicação ao navegador; os mesmos de `allowedOrigins`.
   hostsPermitidos: (process.env.SHELL_HOSTS ?? 'localhost:3000').split(','),
   next: { cabecalho, naoEncontrado: notFound, redirecionar: redirect, porRequisicao: cache },
-  // Entrada de menu de quem tem papel na gestão de acesso; a mesma em toda app (moldura comum).
+  // Menu igual em toda app (moldura comum): o início do shell para toda sessão; a gestão de acesso para quem tem papel.
+  entradaInicial: { id: 'inicio', rotulo: 'Início', prefixo: '/' },
   entradaAdministrativa: { id: 'acesso', rotulo: 'Gestão de acesso', prefixo: '/acesso' },
 })
 
