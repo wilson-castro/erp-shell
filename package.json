@@ -12,9 +12,9 @@
     "registrar": "node scripts/registrar-manifesto.ts"
   },
   "dependencies": {
-    "@erp/contratos": "0.2.1",
+    "@erp/contratos": "0.3.1",
     "@erp/moldura": "0.4.0",
-    "@erp/nucleo": "0.7.0",
+    "@erp/nucleo": "0.8.2",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",

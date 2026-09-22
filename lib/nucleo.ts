@@ -28,7 +28,7 @@ export const nucleo = criarNucleoDoShell({
     },
     'gestao-acesso': {
       origem: process.env.ACESSO_URL ?? 'http://127.0.0.1:4010',
-      caminhos: ['/v1/modulos-permitidos'], metodos: ['GET'], credencial: 'usuario', timeoutMs: 1000,
+      caminhos: ['/v1/modulos-permitidos', '/v2/eu'], metodos: ['GET'], credencial: 'usuario', timeoutMs: 1000,
     },
     // Coletor OTLP: só existe se configurado. O gateway /api/otel repassa por aqui, não por
     // `fetch` direto, para o repasse ter allowlist, timeout e nenhum redirecionamento (N8).
