@@ -49,7 +49,7 @@ export function carregarZonas(
     const envOrigem = env[`ZONA_${id.toUpperCase().replaceAll('-', '_')}_URL`]
     const origem = envOrigem ?? origemPadrao
     const envSaude = env[`ZONA_${id.toUpperCase().replaceAll('-', '_')}_HEALTH_URL`]
-    const urlSaude = envSaude ?? `${origem}/${id}`
+    const urlSaude = envSaude ?? `${origem}/${id}/api/health`
 
     zonasValidas.push({
       id,

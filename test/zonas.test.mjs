@@ -55,7 +55,7 @@ test('carregarZonas: permite sobrescrever origem via variaveis de ambiente', () 
 
   // Assert
   assert.equal(zonas[0].origem, 'http://cluster-interno:8080')
-  assert.equal(zonas[0].urlSaude, 'http://cluster-interno:8080/zona1')
+  assert.equal(zonas[0].urlSaude, 'http://cluster-interno:8080/zona1/api/health')
 })
 
 test('gerarRewrites: deriva regras a partir do mapa central de configuracoes (Criterio 2)', () => {
@@ -66,7 +66,7 @@ test('gerarRewrites: deriva regras a partir do mapa central de configuracoes (Cr
       origem: 'http://localhost:3001',
       prefixo: '/zona1',
       prefixoEstatico: '/zona1-static',
-      urlSaude: 'http://localhost:3001/zona1',
+      urlSaude: 'http://localhost:3001/zona1/api/health',
     },
   ]
 

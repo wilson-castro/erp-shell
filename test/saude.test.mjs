@@ -111,3 +111,14 @@ test('U4: zona travada e dada como fora em ~500 ms (timeout padrao da sonda)', {
   assert.equal(await criarCacheSaudeZona(1000, undefined, travada).verificar('http://z/zona2'), false)
   assert.ok(Date.now() - t0 < 1000, `levou ${Date.now() - t0} ms`)
 })
+
+test('configuracao: lerNumeroPositivo aceita valores validos e lanca com formato invalido', async () => {
+  const { lerNumeroPositivo } = await import('../lib/saude-zonas.ts')
+  assert.equal(lerNumeroPositivo(undefined, 1000, 'TESTE'), 1000)
+  assert.equal(lerNumeroPositivo('', 1000, 'TESTE'), 1000)
+  assert.equal(lerNumeroPositivo('2000', 1000, 'TESTE'), 2000)
+  assert.throws(() => lerNumeroPositivo('abc', 1000, 'TESTE'), /configuracao invalida: TESTE/)
+  assert.throws(() => lerNumeroPositivo('-5', 1000, 'TESTE'), /configuracao invalida: TESTE/)
+  assert.throws(() => lerNumeroPositivo('0', 1000, 'TESTE'), /configuracao invalida: TESTE/)
+  assert.throws(() => lerNumeroPositivo('1.5', 1000, 'TESTE'), /configuracao invalida: TESTE/)
+})

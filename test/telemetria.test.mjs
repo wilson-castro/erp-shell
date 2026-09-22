@@ -121,3 +121,13 @@ test('limitador: descartar vencidos nao zera quem ainda esta na janela', () => {
   for (let i = 0; i < 10; i++) limitador.consumir(`u${i}`, 2)            // força a limpeza
   assert.equal(limitador.consumir('ana', 3), false, 'a limpeza zerou a contagem de quem estava na janela')
 })
+
+test('configuracao: lerNumeroPositivo em telemetria valida numeros inteiros positivos', async () => {
+  const { lerNumeroPositivo } = await import('../lib/telemetria.ts')
+  assert.equal(lerNumeroPositivo(undefined, 60, 'TESTE'), 60)
+  assert.equal(lerNumeroPositivo('', 60, 'TESTE'), 60)
+  assert.equal(lerNumeroPositivo('120', 60, 'TESTE'), 120)
+  assert.throws(() => lerNumeroPositivo('invalido', 60, 'TESTE'), /configuracao invalida: TESTE/)
+  assert.throws(() => lerNumeroPositivo('0', 60, 'TESTE'), /configuracao invalida: TESTE/)
+  assert.throws(() => lerNumeroPositivo('-10', 60, 'TESTE'), /configuracao invalida: TESTE/)
+})

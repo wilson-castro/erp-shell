@@ -1,5 +1,14 @@
-export const TAMANHO_MAXIMO_BYTES = 256 * 1024 // 256 KB
-export const LIMITE_LOTES_POR_MINUTO = 60
+export function lerNumeroPositivo(valor: string | undefined, padrao: number, nome: string): number {
+  if (valor === undefined || valor === '') return padrao
+  const n = Number(valor)
+  if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+    throw new Error(`configuracao invalida: ${nome} deve ser inteiro positivo, recebeu "${valor}"`)
+  }
+  return n
+}
+
+export const TAMANHO_MAXIMO_BYTES = lerNumeroPositivo(process.env.ERP_TELEMETRIA_MAX_BYTES, 256 * 1024, 'ERP_TELEMETRIA_MAX_BYTES')
+export const LIMITE_LOTES_POR_MINUTO = lerNumeroPositivo(process.env.ERP_TELEMETRIA_LOTES_POR_MINUTO, 60, 'ERP_TELEMETRIA_LOTES_POR_MINUTO')
 export const JANELA_TAXA_MS = 60 * 1000
 
 interface EntradaTaxa {
