@@ -28,6 +28,9 @@ export interface ContextoRequisicaoProxy {
   readonly temCookieSessao: boolean
 }
 
+/** `caminho` é `prefixo` ou está abaixo dele: `/api/otelx` não é `/api/otel` (auditor_shell_2, U6). */
+const noSegmento = (caminho: string, prefixo: string) => caminho === prefixo || caminho.startsWith(`${prefixo}/`)
+
 export async function decidirAcaoDoProxy(
   contexto: ContextoRequisicaoProxy,
   cacheSaude: CacheSaudeZona = cacheSaudePadrao,
@@ -40,7 +43,7 @@ export async function decidirAcaoDoProxy(
   if (
     caminho === '/login' ||
     caminho.startsWith('/login/') ||
-    caminho.startsWith('/api/auth') ||
+    noSegmento(caminho, '/api/auth') ||
     caminho === '/erro-de-zona' ||
     caminho.startsWith('/erro-de-zona/')
   ) {
@@ -48,7 +51,7 @@ export async function decidirAcaoDoProxy(
   }
 
   // 2. Gateway de telemetria das zonas: tratado pelo route handler do shell
-  if (caminho.startsWith('/api/otel')) {
+  if (noSegmento(caminho, '/api/otel')) {
     return { acao: 'telemetria' }
   }
 

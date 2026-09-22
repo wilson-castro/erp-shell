@@ -95,7 +95,8 @@ test('lerComLimite: le o corpo inteiro quando cabe no limite', async () => {
   assert.equal(corpo.byteLength, 300)
 })
 
-test('lerComLimite: para de ler e devolve null assim que passa do limite (sem Content-Length)', async () => {
+// timeout: uma regressão que lesse tudo travaria aqui para sempre em vez de reprovar (auditor_shell_2)
+test('lerComLimite: para de ler e devolve null assim que passa do limite (sem Content-Length)', { timeout: 2000 }, async () => {
   let puxados = 0
   const infinito = new ReadableStream({ pull(c) { puxados++; c.enqueue(new Uint8Array(64 * 1024)) } })
   assert.equal(await lerComLimite(infinito, 256 * 1024), null)

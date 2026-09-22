@@ -76,3 +76,38 @@ test('criarCacheSaudeZona: chamadas concorrentes compartilham a mesma probe em a
   assert.equal(r2, true)
   assert.equal(chamadas, 1)
 })
+
+// --- gate "Shell novo", iteração 2 (auditor_shell_2, U1–U4): o que a unidade não prendia ---
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms))
+
+test('U1: entrada saudavel expira depois do TTL e a sonda roda de novo', async () => {
+  const { criarCacheSaudeZona } = await import('../lib/saude-zonas.ts')
+  let chamadas = 0
+  const cache = criarCacheSaudeZona(50, 500, async () => { chamadas++; return { status: 200 } })
+  await cache.verificar('http://z/zona2'); await esperar(80); await cache.verificar('http://z/zona2')
+  assert.equal(chamadas, 2)
+})
+
+test('U2: entrada "fora" tambem expira: a zona volta sem reiniciar o shell', async () => {
+  const { criarCacheSaudeZona } = await import('../lib/saude-zonas.ts')
+  let viva = false
+  const cache = criarCacheSaudeZona(50, 500, async () => { if (!viva) throw new Error('ECONNREFUSED'); return { status: 200 } })
+  assert.equal(await cache.verificar('http://z/zona2'), false)
+  viva = true; await esperar(80)
+  assert.equal(await cache.verificar('http://z/zona2'), true)
+})
+
+test('U3: status >= 500 conta como fora; 307 (pagina que pede login) conta como no ar', async () => {
+  const { criarCacheSaudeZona } = await import('../lib/saude-zonas.ts')
+  assert.equal(await criarCacheSaudeZona(1000, 500, async () => ({ status: 502 })).verificar('http://z/a'), false)
+  assert.equal(await criarCacheSaudeZona(1000, 500, async () => ({ status: 307 })).verificar('http://z/b'), true)
+})
+
+test('U4: zona travada e dada como fora em ~500 ms (timeout padrao da sonda)', { timeout: 3000 }, async () => {
+  const { criarCacheSaudeZona, TIMEOUT_PROBE_PADRAO_MS } = await import('../lib/saude-zonas.ts')
+  assert.equal(TIMEOUT_PROBE_PADRAO_MS, 500)
+  const travada = (_u, { signal } = {}) => new Promise((_, rej) => signal?.addEventListener('abort', () => rej(signal.reason)))
+  const t0 = Date.now()
+  assert.equal(await criarCacheSaudeZona(1000, undefined, travada).verificar('http://z/zona2'), false)
+  assert.ok(Date.now() - t0 < 1000, `levou ${Date.now() - t0} ms`)
+})

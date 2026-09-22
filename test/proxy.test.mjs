@@ -78,3 +78,20 @@ test('zona ativa com cookie prossegue', async () => {
   assert.equal(decisao.acao, 'prosseguir')
   assert.ok('nonce' in decisao)
 })
+
+// --- gate "Shell novo", iteração 2 (auditor_shell_2, U5–U6) ---
+test('U5: zona fora e asset estatico dela da 503 (a sonda vem antes do corte de asset)', async () => {
+  const { decidirAcaoDoProxy } = await import('../lib/decisao-proxy.ts')
+  const { carregarZonas } = await import('../lib/zonas.ts')
+  const zonas = carregarZonas({ zona2: 'http://127.0.0.1:3002' }, {})
+  const d = await decidirAcaoDoProxy({ caminho: '/zona2-static/_next/a.js', temCookieSessao: false }, { verificar: async () => false, limpar() {} }, zonas)
+  assert.equal(d.acao, 'zona-inativa')
+})
+
+test('U6: /api fora de /api/otel e /api/auth continua exigindo cookie', async () => {
+  const { decidirAcaoDoProxy } = await import('../lib/decisao-proxy.ts')
+  for (const caminho of ['/api/stream', '/api/qualquer', '/api/otelx', '/api/authx', '/api/auth-falso/x']) {
+    const d = await decidirAcaoDoProxy({ caminho, temCookieSessao: false }, { verificar: async () => true, limpar() {} }, [])
+    assert.equal(d.acao, 'redirecionar-login', caminho)
+  }
+})

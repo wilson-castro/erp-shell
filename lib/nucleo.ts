@@ -1,5 +1,5 @@
 import 'server-only'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { acessoHttp, sessaoArquivo } from '@erp/nucleo'
 // Só o shell importa este subpath (invariante 15); a verificação estática de base/verificacao reprova o import numa zona.
 import { criarNucleoDoShell, identidadeDev, sessaoArquivoDeEscrita } from '@erp/nucleo/shell'
@@ -15,6 +15,8 @@ export const nucleo = criarNucleoDoShell({
   app: 'shell',
   sessao: sessaoArquivo({ dir: SESSAO_DIR }),
   lerCookieDeSessao: async () => (await cookies()).get(NOME_COOKIE_SESSAO)?.value,
+  // núcleo 8: o proxy pôs um traceparent na requisição; cada chamada ao domínio leva um filho
+  lerTraceparent: async () => (await headers()).get('traceparent') ?? undefined,
   acesso: acessoHttp({ destino: 'gestao-acesso' }),
   destinos: {
     // domínio do próprio shell (N7)
