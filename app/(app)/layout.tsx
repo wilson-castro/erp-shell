@@ -1,8 +1,7 @@
 import '@erp/moldura/estilo.css'
 import type { ReactNode } from 'react'
-import { Moldura } from '@erp/moldura'
+import { Moldura, ServicoIndisponivel } from '@erp/moldura'
 import { dadosDaMoldura } from '@/lib/pagina'
-import { ServicoIndisponivel } from '@erp/moldura'
 
 export const metadata = { title: 'ERP' }
 
