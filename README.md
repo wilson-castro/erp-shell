@@ -9,13 +9,20 @@ O **shell**: a única porta de entrada do navegador. Faz o login, é o **único 
 | Chama | domínio `plataforma` (`:4004`) e `gestao-acesso` (`:4010`) — declarados em `lib/nucleo.ts` (registro de destinos) |
 | Depende de | `@erp/nucleo`, `@erp/moldura`, `@erp/contratos` (Verdaccio local `:4873`) |
 
+## Responsabilidades
+
+O que esta parte faz, o que nunca faz e o vocabulário usado aqui (BFF, zona, Server Action…), explicados
+do zero: [`docs/RESPONSABILIDADES.md`](https://github.com/ArtroxGabriel/nextjs-mfe/blob/bff-multizone/docs/RESPONSABILIDADES.md)
+no repositório principal, seção 4.1.
+
 ## Onde fica cada coisa
 
 | Arquivo | Para quê |
 |---|---|
 | `app/` | páginas e Server Actions desta aplicação |
 | `lib/nucleo.ts` | instância do núcleo: sessão, destinos permitidos, gestão de acesso |
-| `lib/pagina.ts` | sessão da página, `exigirModulo`, moldura, envelope de Server Action |
+| `lib/pagina.ts` | liga ao Next o kit do núcleo (`criarPaginas`: sessão, `exigirModulo`, `acaoProtegida`) e da moldura (menu, toast); igual nas quatro apps |
+| `lib/redis.ts` | cliente do store de sessão, usado só se `REDIS_URL` estiver definido (senão, arquivo) |
 | `acesso.manifesto.ts` | módulos, perfis e concessões desta aplicação (`pnpm registrar` envia) |
 | `proxy.ts` | camada 1: cookie de sessão e CSP |
 | `zonas.json` | mapa das zonas: id → origem. Rewrites, sonda de saúde e 503 saem daqui |
