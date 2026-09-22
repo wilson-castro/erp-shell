@@ -1,10 +1,13 @@
 import { nucleo } from '@/lib/nucleo'
-import { exigirModulo, modulosPermitidos, sessaoDaPagina } from '@/lib/pagina'
+import { modulosPermitidos, sessaoDaPagina } from '@/lib/pagina'
 
 type Aviso = { id: string; texto: string }
 
+/**
+ * Início do shell. Não é módulo: toda sessão válida a vê. Continua fail-closed pela consulta ao
+ * acesso efetivo: com a gestão de acesso fora, `modulosPermitidos()` lança (D4).
+ */
 export default async function Inicio() {
-  await exigirModulo('shell.inicio')
   const sessao = await sessaoDaPagina()
   const [modulos, avisos] = await Promise.all([
     modulosPermitidos(),
@@ -21,9 +24,7 @@ export default async function Inicio() {
       <section aria-labelledby="modulos">
         <h2 id="modulos">Seus módulos</h2>
         <ul>
-          {modulos.filter((m) => m.id !== 'shell.inicio').map((m) => (
-            <li key={m.id}><a href={m.prefixo}>{m.rotulo}</a> <small>({m.zona})</small></li>
-          ))}
+          {modulos.map((m) => <li key={m.id}><a href={m.prefixo}>{m.rotulo}</a></li>)}
         </ul>
       </section>
     </>

@@ -15,6 +15,8 @@ const paginas = criarPaginas(nucleo, {
   // Hosts do shell que servem esta aplicação ao navegador; os mesmos de `allowedOrigins`.
   hostsPermitidos: (process.env.SHELL_HOSTS ?? 'localhost:3000').split(','),
   next: { cabecalho, naoEncontrado: notFound, redirecionar: redirect, porRequisicao: cache },
+  // Entrada de menu de quem tem papel na gestão de acesso; a mesma em toda app (moldura comum).
+  entradaAdministrativa: { id: 'acesso', rotulo: 'Gestão de acesso', prefixo: '/acesso' },
 })
 
 const moldura = criarMolduraDoServidor({
@@ -23,5 +25,5 @@ const moldura = criarMolduraDoServidor({
   gravarCookie: async (nome, valor, atributos) => { (await cookies()).set(nome, valor, atributos) },
 })
 
-export const { caminhoAtual, sessaoDaPagina, modulosPermitidos, exigirModulo } = paginas
+export const { caminhoAtual, sessaoDaPagina, acessoEfetivo, modulosPermitidos, exigirModulo, exigirPapel } = paginas
 export const { dadosDaMoldura, flash, acaoProtegida } = moldura
