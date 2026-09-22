@@ -52,18 +52,18 @@ packages:
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
 
   '@erp/contratos@0.2.1':
-    resolution: {integrity: sha512-yPGMDgcsl9WYvtVSqB80kmOQOhhDx267DNmExY3d03mvZBml/hUSj9mWdyNhZhHpFyHewrwJrPKHSnKcYDUBjA==, tarball: http://localhost:4873/@erp/contratos/-/contratos-0.2.1.tgz}
+    resolution: {integrity: sha512-t4pjbg3NSd8MbhrKvmfM7dS98WmL30W55Ckz/9yF7eE5Ej2hXgoZSWyLCJM0Lz13MliHgwi1sAF06sRQt+ZDKg==, tarball: http://localhost:4873/@erp/contratos/-/contratos-0.2.1.tgz}
 
   '@erp/contratos@0.3.1':
-    resolution: {integrity: sha512-8gp9WKXrK7bryFZeWql8g1AWKVigy3h5NXLpxX4YJ7ti3wsHMJMddTKyN5EadjtGL/xfV+TUcdiGuo+x+wTdEQ==, tarball: http://localhost:4873/@erp/contratos/-/contratos-0.3.1.tgz}
+    resolution: {integrity: sha512-hzwroPf1jJ65znlNTdR0fZJvTYZiDod7Ril9yC7m/vCWtZW8Ngdeo/8dJ2ScQRfQeMhzHt4bl8bsdJBJg2qegg==, tarball: http://localhost:4873/@erp/contratos/-/contratos-0.3.1.tgz}
 
   '@erp/moldura@0.4.0':
-    resolution: {integrity: sha512-ceVEdxUTsf+u2g+wHVT/oZ9lwNahy+XJunjg1f+7rK77fz0mixNhSuoTXhodS0q2bRvUdQOHRNCM3EbtwkVXwQ==, tarball: http://localhost:4873/@erp/moldura/-/moldura-0.4.0.tgz}
+    resolution: {integrity: sha512-qjomvhsE+Ro91aw3l3eOy/NJezWRSdL4rCcUYlmKfB+DicahZzacy6VatYgJDPhVo45RkCwSY76L9Fw/lU/6xw==, tarball: http://localhost:4873/@erp/moldura/-/moldura-0.4.0.tgz}
     peerDependencies:
       react: ^19.0.0
 
   '@erp/nucleo@0.8.2':
-    resolution: {integrity: sha512-E+KI+bT8A4NIHS1FL9KrxWJ2CXSb1t4bX7n5d1vGGR8L/GPADVRDa1qZkVJYlQgHL6MGW/nJBiRLpt3PpAWfhg==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.8.2.tgz}
+    resolution: {integrity: sha512-bIrCAFk8ifLQipFGJxyX54okmYRaIDerRa0JCyL9s+ZHcW84mgljXeIEgsUXIm7gU3TMFG5VCo8hxRqnbl3V8A==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.8.2.tgz}
     peerDependencies:
       next: ^16.0.0
       server-only: ^0.0.1
