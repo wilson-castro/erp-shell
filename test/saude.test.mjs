@@ -144,3 +144,19 @@ test('L2: parametros da sonda e da telemetria tem teto; acima dele, erro na subi
   assert.match(fonte('telemetria.ts'), /'ERP_TELEMETRIA_MAX_BYTES', 1024 \* 1024\)/)
   assert.match(fonte('telemetria.ts'), /'ERP_TELEMETRIA_LOTES_POR_MINUTO', 600\)/)
 })
+
+// --- auditor_b1_d1_3 (L7: S05, S17) ---
+test('S05: sem ERP_SONDA_TTL_MS o TTL da sonda e 1 s (docs/CONFIGURACAO.md), nao o teto', async () => {
+  assert.equal(process.env.ERP_SONDA_TTL_MS, undefined, 'o teste precisa do ambiente sem a variavel')
+  const { TTL_SAUDE_PADRAO_MS, TIMEOUT_PROBE_PADRAO_MS } = await import('../lib/saude-zonas.ts')
+  assert.equal(TTL_SAUDE_PADRAO_MS, 1000)
+  assert.equal(TIMEOUT_PROBE_PADRAO_MS, 500)
+})
+
+test('S17: zona "fora" tambem fica no cache durante o TTL: a zona caida nao e sondada a cada pedido', async () => {
+  const { criarCacheSaudeZona } = await import('../lib/saude-zonas.ts')
+  let chamadas = 0
+  const cache = criarCacheSaudeZona(10_000, 500, async () => { chamadas++; throw new Error('ECONNREFUSED') })
+  for (let i = 0; i < 5; i++) assert.equal(await cache.verificar('http://z/zona2'), false)
+  assert.equal(chamadas, 1)
+})
