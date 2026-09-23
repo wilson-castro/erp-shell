@@ -160,3 +160,13 @@ test('S17: zona "fora" tambem fica no cache durante o TTL: a zona caida nao e so
   for (let i = 0; i < 5; i++) assert.equal(await cache.verificar('http://z/zona2'), false)
   assert.equal(chamadas, 1)
 })
+
+test('S17b: zona "fora" permanece em cache apos intervalo menor que TTL', async () => {
+  const { criarCacheSaudeZona } = await import('../lib/saude-zonas.ts')
+  let chamadas = 0
+  const cache = criarCacheSaudeZona(1000, 500, async () => { chamadas++; throw new Error('ECONNREFUSED') })
+  assert.equal(await cache.verificar('http://z/zona2'), false)
+  await esperar(50)
+  assert.equal(await cache.verificar('http://z/zona2'), false)
+  assert.equal(chamadas, 1)
+})
