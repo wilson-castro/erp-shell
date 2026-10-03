@@ -1,14 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { politicaDeSeguranca, garantirTraceparent } from '@erp/nucleo/proxy'
 import { decidirAcaoDoProxy } from './lib/decisao-proxy'
-
-export const NOME_COOKIE_SESSAO = '__Host-session'
+import { cacheSaudePadrao } from './lib/saude-zonas'
+import { NOME_COOKIE_SESSAO, apagarCookie } from './lib/cookies'
+import { nucleo } from './lib/nucleo'
 
 export default async function proxy(req: NextRequest): Promise<NextResponse> {
   const caminho = req.nextUrl.pathname
+  const idSessao = req.cookies.get(NOME_COOKIE_SESSAO)?.value
   const temCookieSessao = req.cookies.has(NOME_COOKIE_SESSAO)
 
-  const decisao = await decidirAcaoDoProxy({ caminho, temCookieSessao })
+  // Renovação proativa (ADR-0013, decisão 4): toda requisição a zona ou página do shell passa aqui.
+  // Lock, releitura e gravação ficam na fábrica do núcleo; o proxy só decide o que fazer com o resultado.
+  const decisao = await decidirAcaoDoProxy(
+    { caminho, temCookieSessao, idSessao, metodo: req.method },
+    cacheSaudePadrao, undefined, nucleo.sessao.renovarSessao,
+  )
 
   switch (decisao.acao) {
     case 'publico':
@@ -26,12 +33,18 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
 
     case 'redirecionar-login': {
       const urlAbsoluta = new URL(decisao.destino, req.url)
-      return NextResponse.redirect(urlAbsoluta, 307)
+      return semSessaoSe(decisao.limparSessao, NextResponse.redirect(urlAbsoluta, 307))
     }
 
     case 'prosseguir':
-      return aplicarCsp(req, decisao.nonce)
+      return semSessaoSe(decisao.limparSessao, aplicarCsp(req, decisao.nonce))
   }
+}
+
+/** Sessão revogada ou ausente do store: o cookie que aponta para ela sai junto com a resposta. */
+function semSessaoSe(limpar: true | undefined, res: NextResponse): NextResponse {
+  if (limpar) res.headers.append('Set-Cookie', apagarCookie(NOME_COOKIE_SESSAO))
+  return res
 }
 
 function aplicarCsp(req: NextRequest, nonce: string): NextResponse {

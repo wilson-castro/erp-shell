@@ -2,15 +2,46 @@ import 'server-only'
 import { cookies, headers } from 'next/headers'
 import { acessoHttp, sessaoArquivo, sessaoRedis } from '@erp/nucleo'
 // Só o shell importa este subpath (invariante 15); a verificação estática de base/verificacao reprova o import numa zona.
-import { criarNucleoDoShell, identidadeDev, sessaoArquivoDeEscrita, sessaoRedisDeEscrita } from '@erp/nucleo/shell'
+import {
+  criarNucleoDoShell, identidadeDev, identidadeOidc, sessaoArquivoDeEscrita, sessaoRedisDeEscrita,
+  type ProvedorDeIdentidade,
+} from '@erp/nucleo/shell'
 import { clienteRedis } from './redis'
+import { lerNumeroPositivo } from './configuracao'
+import { NOME_COOKIE_SESSAO } from './cookies'
+
+export { NOME_COOKIE_SESSAO }
 
 const SESSAO_DIR = process.env.SESSAO_DIR ?? '/tmp/erp-sessoes'
-export const NOME_COOKIE_SESSAO = '__Host-session'
+
+/** Sem `IDP_EMISSOR`, login de desenvolvimento (atores fixos, `/login/dev`); com ele, OIDC. */
+const emissor = process.env.IDP_EMISSOR
+export const loginDeDesenvolvimento = !emissor
+
+/**
+ * O provedor de identidade, escolhido pelo ambiente (docs/CONFIGURACAO.md §1). Os padrões das URLs
+ * são as do realm do showcase e usam `http://`, que o `identidadeOidc` recusa em produção: fora da
+ * máquina local, `IDP_URL_RETORNO` e `IDP_URL_POS_LOGOUT` têm de ser configuradas. O segredo não tem
+ * padrão: sem `IDP_CLIENTE_SEGREDO`, a criação falha na subida do shell.
+ */
+function provedorDeIdentidade(): ProvedorDeIdentidade {
+  if (!emissor) return identidadeDev()
+  return identidadeOidc({
+    emissor,
+    clienteId: process.env.IDP_CLIENTE_ID || 'erp-shell',
+    clienteSegredo: process.env.IDP_CLIENTE_SEGREDO ?? '',
+    urlRetorno: process.env.IDP_URL_RETORNO || 'http://localhost:3000/api/auth/retorno',
+    urlPosLogout: process.env.IDP_URL_POS_LOGOUT || 'http://localhost:3000/login',
+  })
+}
+
+/** Vida do cookie `__Host-erp-login`: a mesma da transação no store (padrão e teto do núcleo). */
+export const vidaTransacaoS = lerNumeroPositivo(process.env.ERP_LOGIN_TRANSACAO_S, 600, 'ERP_LOGIN_TRANSACAO_S', 3_600)
 
 /**
  * Raiz de composição do shell. Só configuração, lida do ambiente. O shell é a ÚNICA
- * aplicação com `criarNucleoDoShell`: grava e encerra sessão; as zonas só leem (N3).
+ * aplicação com `criarNucleoDoShell`: grava, renova e encerra sessão; as zonas só leem (N3).
+ * `ERP_RENOVACAO_JANELA_S` e `ERP_RENOVACAO_LOCK_S` são lidas pela própria fábrica.
  */
 export const nucleo = criarNucleoDoShell({
   app: 'shell',
@@ -44,6 +75,6 @@ export const nucleo = criarNucleoDoShell({
   },
   escrita: {
     store: clienteRedis ? sessaoRedisDeEscrita({ cliente: clienteRedis }) : sessaoArquivoDeEscrita({ dir: SESSAO_DIR }),
-    identidade: identidadeDev(),
+    identidade: provedorDeIdentidade(),
   },
 })

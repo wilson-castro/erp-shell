@@ -1,13 +1,13 @@
 # erp-shell
 
-O **shell**: a única porta de entrada do navegador. Faz o login, é o **único escritor da sessão**, repassa cada prefixo de zona por rewrite, responde 503 quando uma zona cai e recebe a telemetria das zonas.
+O **shell**: a única porta de entrada do navegador. Faz o login (OIDC com PKCE, ou o de desenvolvimento sem `IDP_EMISSOR`), é o **único escritor da sessão** (inclusive a renovação proativa do token, no proxy), repassa cada prefixo de zona por rewrite, responde 503 quando uma zona cai e recebe a telemetria das zonas.
 
 | | |
 |---|---|
 | Porta | `3000` (acessada pelo navegador **só via shell**, `http://localhost:3000`) |
-| Rotas | `/`, `/login`, `/api/auth/entrar`, `/api/auth/sair`, `/api/otel/v1/traces`, `/erro-de-zona`; e os prefixos das zonas (`zonas.json`) |
+| Rotas | `/`, `/login`, `/login/dev` (só sem `IDP_EMISSOR`), `GET /api/auth/entrar`, `GET /api/auth/retorno`, `POST /api/auth/sair`, `/api/otel/v1/traces`, `/erro-de-zona`; e os prefixos das zonas (`zonas.json`) |
 | Chama | domínio `plataforma` (`:4004`) e `gestao-acesso` (`:4010`) — declarados em `lib/nucleo.ts` (registro de destinos) |
-| Depende de | `@erp/nucleo`, `@erp/moldura`, `@erp/contratos` (Verdaccio local `:4873`) |
+| Depende de | `@erp/nucleo`, `@erp/moldura`, `@erp/contratos` (Verdaccio local `:4873`); `openid-client` (peer do `@erp/nucleo/shell`, usado só dentro do núcleo) |
 
 ## Responsabilidades
 
@@ -20,14 +20,16 @@ no repositório principal, seção 4.1.
 | Arquivo | Para quê |
 |---|---|
 | `app/` | páginas e Server Actions desta aplicação |
-| `lib/nucleo.ts` | instância do núcleo: sessão, destinos permitidos, gestão de acesso |
+| `lib/nucleo.ts` | instância do núcleo: sessão, provedor de identidade (OIDC ou dev), destinos permitidos, gestão de acesso |
+| `lib/rotas-auth.ts` | entrar, retorno e sair (ADR-0013): transação em `__Host-erp-login`, sessão em `__Host-session`, erro como `{ codigo, supportId }` |
+| `lib/cookies.ts` | nomes e atributos dos cookies `__Host-` do shell |
 | `lib/pagina.ts` | liga ao Next o kit do núcleo (`criarPaginas`: sessão, `exigirModulo`, `acaoProtegida`) e da moldura (menu, toast); igual nas quatro apps |
 | `lib/redis.ts` | cliente do store de sessão, usado só se `REDIS_URL` estiver definido (senão, arquivo) |
 | `acesso.manifesto.ts` | módulos, perfis e concessões desta aplicação (`pnpm registrar` envia) |
-| `proxy.ts` | camada 1: cookie de sessão e CSP |
+| `proxy.ts` | camada 1: cookie de sessão, renovação proativa (`nucleo.sessao.renovarSessao`) e CSP |
 | `zonas.json` | mapa das zonas: id → origem. Rewrites, sonda de saúde e 503 saem daqui |
 | `lib/decisao-proxy.ts` | o que o proxy decide, em ordem (função pura, testada) |
-| `test/` | `pnpm test`: decisão do proxy, sonda, mapa de zonas, telemetria |
+| `test/` | `pnpm test`: decisão do proxy, renovação concorrente, rotas de autenticação, cliente Redis, sonda, mapa de zonas, telemetria |
 
 ## Comandos
 

@@ -15,11 +15,14 @@ importers:
         specifier: 0.5.0
         version: 0.5.0(react@19.2.8)
       '@erp/nucleo':
-        specifier: 0.9.2
-        version: 0.9.2(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)
+        specifier: 0.10.0
+        version: 0.10.0(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(openid-client@6.8.8)(server-only@0.0.1)
       next:
         specifier: 16.3.4
         version: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      openid-client:
+        specifier: ^6.8.8
+        version: 6.8.8
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -62,11 +65,15 @@ packages:
     peerDependencies:
       react: ^19.0.0
 
-  '@erp/nucleo@0.9.2':
-    resolution: {integrity: sha512-sKyMjtvGGCr6EHtMSJAjaT30La2mIhxzFIR3esRWNpsTN7qjWHQLxAtYnFlG33w6HKt993STOS1SGxqkmlgAhg==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.9.2.tgz}
+  '@erp/nucleo@0.10.0':
+    resolution: {integrity: sha512-WVjLWtbRfk5BkrmUkRc2svqibBg55A8vfrjX5U0LrNIOO7aRdcoEC9WROmgjv7EqbaxT5jOoi/s6J+S5FNS3YQ==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.10.0.tgz}
     peerDependencies:
       next: ^16.0.0
+      openid-client: ^6.8.8
       server-only: ^0.0.1
+    peerDependenciesMeta:
+      openid-client:
+        optional: true
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -357,6 +364,9 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
+
   nanoid@3.3.19:
     resolution: {integrity: sha512-Y2tUNy4ouw6tq5oDSKeQYGOyhkUBhNOcGV/02KC+6kd9eDGqdZd++mjMiIDilrBYvjEnCYvVtsuHCuP+okSfug==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -382,6 +392,12 @@ packages:
         optional: true
       sass:
         optional: true
+
+  oauth4webapi@3.8.8:
+    resolution: {integrity: sha512-8N28E+a/oxfXWBgOMt+ZP/JUf/XR+IFbvkAEPP3gznXOMv9BpAAwiIj0TFNz3tGTPc0ZQ8zmWBNgN1nAys0gng==}
+
+  openid-client@6.8.8:
+    resolution: {integrity: sha512-ZsucJA5Ad04Uv7YN4ql+s4GXNmb9uAYQwyJTsJx7CH/MX3JZioLE2pVKi1SC+YrbSLA4Px3Gi30dMjgOZtb6pA==}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -467,11 +483,13 @@ snapshots:
       '@erp/contratos': 0.2.1
       react: 19.2.8
 
-  '@erp/nucleo@0.9.2(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(server-only@0.0.1)':
+  '@erp/nucleo@0.10.0(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(openid-client@6.8.8)(server-only@0.0.1)':
     dependencies:
       '@erp/contratos': 0.4.0
       next: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       server-only: 0.0.1
+    optionalDependencies:
+      openid-client: 6.8.8
 
   '@img/colour@1.1.0':
     optional: true
@@ -655,6 +673,8 @@ snapshots:
   detect-libc@2.1.2:
     optional: true
 
+  jose@6.2.12: {}
+
   nanoid@3.3.19: {}
 
   next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
@@ -681,6 +701,13 @@ snapshots:
       - '@babel/core'
       - '@types/node'
       - babel-plugin-macros
+
+  oauth4webapi@3.8.8: {}
+
+  openid-client@6.8.8:
+    dependencies:
+      jose: 6.2.12
+      oauth4webapi: 3.8.8
 
   picocolors@1.1.1: {}
 

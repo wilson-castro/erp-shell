@@ -1,3 +1,5 @@
+import 'server-only'
+import type { EstadoDaRenovacao } from '@erp/nucleo/shell'
 import {
   encontrarZonaPorCaminho,
   type DefinicaoDeZona,
@@ -20,21 +22,61 @@ export type DecisaoProxy =
       readonly html: string
     }
   | { readonly acao: 'zona-estatica' }
-  | { readonly acao: 'redirecionar-login'; readonly destino: string }
-  | { readonly acao: 'prosseguir'; readonly nonce: string }
+  // `limparSessao`: o cookie leva a uma sessão que acabou (revogada no IdP ou ausente do store)
+  | { readonly acao: 'redirecionar-login'; readonly destino: string; readonly limparSessao?: true }
+  | { readonly acao: 'prosseguir'; readonly nonce: string; readonly limparSessao?: true }
 
 export interface ContextoRequisicaoProxy {
   readonly caminho: string
   readonly temCookieSessao: boolean
+  /** Valor do cookie de sessão, para a renovação proativa. */
+  readonly idSessao?: string | undefined
+  /** Método HTTP; ausente vale como `GET`. */
+  readonly metodo?: string | undefined
 }
+
+/** `nucleo.sessao.renovarSessao` da fábrica do shell: lock, releitura, IdP e gravação ficam lá. */
+export type RenovarSessao = (id: string | undefined) => Promise<EstadoDaRenovacao>
 
 /** `caminho` é `prefixo` ou está abaixo dele: `/api/otelx` não é `/api/otel` (auditor_shell_2, U6). */
 const noSegmento = (caminho: string, prefixo: string) => caminho === prefixo || caminho.startsWith(`${prefixo}/`)
 
+const paraLogin = (caminho: string) => `/login?de=${encodeURIComponent(caminho)}`
+
+/**
+ * Renovação proativa (ADR-0013, decisão 4) de uma requisição com cookie que vai seguir. A fábrica
+ * só chama o IdP dentro da janela e para quem ganhou o lock; quem perdeu recebe `em-andamento` na
+ * hora, então nenhuma requisição espera a renovação de outra.
+ *
+ * - `revogada` ou `ausente`: a sessão acabou. Navegação (`GET`/`HEAD`) vai ao login; o resto
+ *   (Server Action, `POST` de route handler) segue para a camada 2 responder do jeito dela, que é
+ *   o que a action sabe transformar em ida ao login. Nos dois casos o cookie morto é apagado.
+ * - Erro (IdP ou store fora): a sessão fica e a requisição segue; o lock da fábrica segura novas
+ *   tentativas até vencer. Um IdP instável não desloga ninguém.
+ */
+async function prosseguirComRenovacao(
+  contexto: ContextoRequisicaoProxy, renovar: RenovarSessao | undefined, nonce: string,
+): Promise<DecisaoProxy> {
+  if (!renovar) return { acao: 'prosseguir', nonce }
+  let estado: EstadoDaRenovacao
+  try {
+    estado = await renovar(contexto.idSessao)
+  } catch {
+    return { acao: 'prosseguir', nonce }
+  }
+  if (estado !== 'revogada' && estado !== 'ausente') return { acao: 'prosseguir', nonce }
+  const metodo = (contexto.metodo ?? 'GET').toUpperCase()
+  if (metodo === 'GET' || metodo === 'HEAD') {
+    return { acao: 'redirecionar-login', destino: paraLogin(contexto.caminho), limparSessao: true }
+  }
+  return { acao: 'prosseguir', nonce, limparSessao: true }
+}
+
 export async function decidirAcaoDoProxy(
   contexto: ContextoRequisicaoProxy,
   cacheSaude: CacheSaudeZona = cacheSaudePadrao,
-  zonas?: readonly DefinicaoDeZona[]
+  zonas?: readonly DefinicaoDeZona[],
+  renovar?: RenovarSessao
 ): Promise<DecisaoProxy> {
   const { caminho, temCookieSessao } = contexto
   const nonce = crypto.randomUUID().replaceAll('-', '')
@@ -78,22 +120,16 @@ export async function decidirAcaoDoProxy(
     }
 
     if (!temCookieSessao) {
-      return {
-        acao: 'redirecionar-login',
-        destino: `/login?de=${encodeURIComponent(caminho)}`,
-      }
+      return { acao: 'redirecionar-login', destino: paraLogin(caminho) }
     }
 
-    return { acao: 'prosseguir', nonce }
+    return prosseguirComRenovacao(contexto, renovar, nonce)
   }
 
   // 4. Rotas da própria aplicação shell (ex.: '/')
   if (!temCookieSessao) {
-    return {
-      acao: 'redirecionar-login',
-      destino: `/login?de=${encodeURIComponent(caminho)}`,
-    }
+    return { acao: 'redirecionar-login', destino: paraLogin(caminho) }
   }
 
-  return { acao: 'prosseguir', nonce }
+  return prosseguirComRenovacao(contexto, renovar, nonce)
 }
