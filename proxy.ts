@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { politicaDeSeguranca, garantirTraceparent } from '@erp/nucleo/proxy'
+import { garantirTraceparent } from '@erp/nucleo/proxy'
+import { cspDoShell } from './lib/csp'
 import { decidirAcaoDoProxy } from './lib/decisao-proxy'
 import { cacheSaudePadrao } from './lib/saude-zonas'
 import { NOME_COOKIE_SESSAO, apagarCookie } from './lib/cookies'
@@ -51,7 +52,7 @@ function aplicarCsp(req: NextRequest, nonce: string): NextResponse {
   const headers = new Headers(req.headers)
   headers.set('x-nonce', nonce)
   headers.set('x-erp-caminho', req.nextUrl.pathname)
-  headers.set('Content-Security-Policy', politicaDeSeguranca(nonce))
+  headers.set('Content-Security-Policy', cspDoShell(nonce))
   // núcleo 8: um trace por requisição, reaproveitando o do navegador se vier válido
   headers.set('traceparent', garantirTraceparent(req.headers.get('traceparent')))
   headers.delete('x-erp-flash')
@@ -65,7 +66,7 @@ function aplicarCsp(req: NextRequest, nonce: string): NextResponse {
     res.cookies.set('__Host-flash', '', { path: '/', secure: true, sameSite: 'lax', maxAge: 0 })
   }
   res.headers.set('x-nonce', nonce)
-  res.headers.set('Content-Security-Policy', politicaDeSeguranca(nonce))
+  res.headers.set('Content-Security-Policy', cspDoShell(nonce))
   return res
 }
 

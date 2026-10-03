@@ -15,8 +15,8 @@ importers:
         specifier: 0.5.0
         version: 0.5.0(react@19.2.8)
       '@erp/nucleo':
-        specifier: 0.10.0
-        version: 0.10.0(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(openid-client@6.8.8)(server-only@0.0.1)
+        specifier: 0.10.1
+        version: 0.10.1(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(openid-client@6.8.8)(server-only@0.0.1)
       next:
         specifier: 16.3.4
         version: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -65,8 +65,8 @@ packages:
     peerDependencies:
       react: ^19.0.0
 
-  '@erp/nucleo@0.10.0':
-    resolution: {integrity: sha512-WVjLWtbRfk5BkrmUkRc2svqibBg55A8vfrjX5U0LrNIOO7aRdcoEC9WROmgjv7EqbaxT5jOoi/s6J+S5FNS3YQ==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.10.0.tgz}
+  '@erp/nucleo@0.10.1':
+    resolution: {integrity: sha512-BD4iz9TFAnuZINDG3ab+1CT2yF+Ep+xwfhQQr6ZmGsXruKlfPwxZdgZCvHTXMARtkoGIl4gmt5g1l8Cwt00INQ==, tarball: http://localhost:4873/@erp/nucleo/-/nucleo-0.10.1.tgz}
     peerDependencies:
       next: ^16.0.0
       openid-client: ^6.8.8
@@ -483,7 +483,7 @@ snapshots:
       '@erp/contratos': 0.2.1
       react: 19.2.8
 
-  '@erp/nucleo@0.10.0(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(openid-client@6.8.8)(server-only@0.0.1)':
+  '@erp/nucleo@0.10.1(next@16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(openid-client@6.8.8)(server-only@0.0.1)':
     dependencies:
       '@erp/contratos': 0.4.0
       next: 16.3.4(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
