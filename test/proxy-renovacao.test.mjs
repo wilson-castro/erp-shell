@@ -7,6 +7,9 @@ import { decidirAcaoDoProxy } from '../lib/decisao-proxy.ts'
 import { criarCacheSaudeZona } from '../lib/saude-zonas.ts'
 import { STORES, sessaoVencendo, identidadeContada, nucleoDoShell, ateQue } from './apoio-auth.mjs'
 
+/** Páginas do próprio shell (ramo 4 da decisão): `/` e outra qualquer que não é pública nem de zona. */
+const PAGINAS_DO_SHELL = ['/', '/preferencias']
+
 const zonaNoAr = () => criarCacheSaudeZona(1000, 500, async () => ({ status: 200 }))
 
 /** O caminho do proxy: o que `proxy.ts` passa para a decisão, com o `renovarSessao` da fábrica. */
@@ -44,29 +47,33 @@ for (const [nomeStore, criarStore] of Object.entries(STORES)) {
   })
 
   // Só páginas do shell, sem nenhuma de zona: um vencedor de zona não pode mascarar o ramo 4
-  // (rotas do próprio shell) sem renovação. Quem fica em `/` depois do vencimento perderia a sessão.
-  test(`paginas do shell (${nomeStore}): so requisicoes a / com o token na janela renovam uma vez e gravam o token novo`, async () => {
-    const store = criarStore()
-    await store.escritor.gravar('s-1', sessaoVencendo())
-    const idp = identidadeContada()
-    idp.liberar()
-    const nucleo = nucleoDoShell(store, idp.identidade)
+  // (rotas do próprio shell) sem renovação. Quem fica numa página do shell depois do vencimento perderia a
+  // sessão. Hoje o shell só tem `/`; `/preferencias` é outra página do ramo 4 (nem pública nem de zona), para
+  // o teste continuar valendo quando o shell ganhar uma segunda página (auditor_d2_2, P04b).
+  for (const caminhoDoShell of PAGINAS_DO_SHELL) {
+    test(`paginas do shell (${nomeStore}): so requisicoes a ${caminhoDoShell} com o token na janela renovam uma vez e gravam o token novo`, async () => {
+      const store = criarStore()
+      await store.escritor.gravar('s-1', sessaoVencendo())
+      const idp = identidadeContada()
+      idp.liberar()
+      const nucleo = nucleoDoShell(store, idp.identidade)
 
-    const decisoes = await Promise.all(Array.from({ length: 5 }, () => pedir(nucleo, { caminho: '/' })))
-    assert.equal(idp.chamadas(), 1, 'a pagina do shell renova no proxy, uma vez')
-    assert.ok(decisoes.every((d) => d.acao === 'prosseguir' && !d.limparSessao))
-    assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o token novo foi gravado')
-  })
+      const decisoes = await Promise.all(Array.from({ length: 5 }, () => pedir(nucleo, { caminho: caminhoDoShell })))
+      assert.equal(idp.chamadas(), 1, 'a pagina do shell renova no proxy, uma vez')
+      assert.ok(decisoes.every((d) => d.acao === 'prosseguir' && !d.limparSessao))
+      assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o token novo foi gravado')
+    })
 
-  test(`pagina do shell com sessao revogada (${nomeStore}): navegacao a / vai ao login com o cookie apagado`, async () => {
-    const store = criarStore()
-    await store.escritor.gravar('s-1', sessaoVencendo())
-    const idp = identidadeContada({ resultado: 'revogada' })
-    idp.liberar()
-    const d = await pedir(nucleoDoShell(store, idp.identidade), { caminho: '/' })
-    assert.deepEqual(d, { acao: 'redirecionar-login', destino: '/login?de=%2F', limparSessao: true })
-    assert.equal(idp.chamadas(), 1)
-  })
+    test(`pagina do shell com sessao revogada (${nomeStore}): navegacao a ${caminhoDoShell} vai ao login com o cookie apagado`, async () => {
+      const store = criarStore()
+      await store.escritor.gravar('s-1', sessaoVencendo())
+      const idp = identidadeContada({ resultado: 'revogada' })
+      idp.liberar()
+      const d = await pedir(nucleoDoShell(store, idp.identidade), { caminho: caminhoDoShell })
+      assert.deepEqual(d, { acao: 'redirecionar-login', destino: `/login?de=${encodeURIComponent(caminhoDoShell)}`, limparSessao: true })
+      assert.equal(idp.chamadas(), 1)
+    })
+  }
 
   test(`revogada (${nomeStore}): navegacao vai ao login com o cookie apagado e a sessao some do store`, async () => {
     const store = criarStore()
