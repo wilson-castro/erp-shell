@@ -43,6 +43,31 @@ for (const [nomeStore, criarStore] of Object.entries(STORES)) {
     assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o vencedor gravou o token novo')
   })
 
+  // Só páginas do shell, sem nenhuma de zona: um vencedor de zona não pode mascarar o ramo 4
+  // (rotas do próprio shell) sem renovação. Quem fica em `/` depois do vencimento perderia a sessão.
+  test(`paginas do shell (${nomeStore}): so requisicoes a / com o token na janela renovam uma vez e gravam o token novo`, async () => {
+    const store = criarStore()
+    await store.escritor.gravar('s-1', sessaoVencendo())
+    const idp = identidadeContada()
+    idp.liberar()
+    const nucleo = nucleoDoShell(store, idp.identidade)
+
+    const decisoes = await Promise.all(Array.from({ length: 5 }, () => pedir(nucleo, { caminho: '/' })))
+    assert.equal(idp.chamadas(), 1, 'a pagina do shell renova no proxy, uma vez')
+    assert.ok(decisoes.every((d) => d.acao === 'prosseguir' && !d.limparSessao))
+    assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o token novo foi gravado')
+  })
+
+  test(`pagina do shell com sessao revogada (${nomeStore}): navegacao a / vai ao login com o cookie apagado`, async () => {
+    const store = criarStore()
+    await store.escritor.gravar('s-1', sessaoVencendo())
+    const idp = identidadeContada({ resultado: 'revogada' })
+    idp.liberar()
+    const d = await pedir(nucleoDoShell(store, idp.identidade), { caminho: '/' })
+    assert.deepEqual(d, { acao: 'redirecionar-login', destino: '/login?de=%2F', limparSessao: true })
+    assert.equal(idp.chamadas(), 1)
+  })
+
   test(`revogada (${nomeStore}): navegacao vai ao login com o cookie apagado e a sessao some do store`, async () => {
     const store = criarStore()
     await store.escritor.gravar('s-1', sessaoVencendo())
