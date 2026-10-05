@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import ts from 'typescript'
 import { identidadeDev } from '@erp/nucleo/shell'
 import { entrar, retorno, sair, registrarNoConsole } from '../lib/rotas-auth.ts'
 import { lerHostsDoShell } from '../lib/configuracao.ts'
@@ -331,7 +332,27 @@ test('registrarNoConsole: uma linha so com etapa ou motivo, codigo e supportId (
 
 test('lib/nucleo.ts passa o registrador das rotas ao nucleo e nao le ERP_LOGIN_TRANSACAO_S', () => {
   const fonte = readFileSync(new URL('../lib/nucleo.ts', import.meta.url), 'utf8')
-  assert.match(fonte, /^\s*registrarFalha: registrarNoConsole,$/m)
+  // Pela árvore sintática, não pelo texto: reformatar não quebra, e um comentário não conta.
+  const sf = ts.createSourceFile('nucleo.ts', fonte, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const importado = sf.statements.some((st) => ts.isImportDeclaration(st) && st.moduleSpecifier.text === './rotas-auth'
+    && st.importClause?.namedBindings?.elements?.some((e) => e.name.text === 'registrarNoConsole' && !e.propertyName))
+  assert.ok(importado, "lib/nucleo.ts nao importa registrarNoConsole de './rotas-auth'")
+  const registradores = []
+  const visitar = (no) => {
+    if (ts.isCallExpression(no) && ts.isIdentifier(no.expression) && no.expression.text === 'criarNucleoDoShell') {
+      const [opcoes] = no.arguments
+      if (opcoes && ts.isObjectLiteralExpression(opcoes)) {
+        for (const p of opcoes.properties) {
+          if (p.name && ts.isIdentifier(p.name) && p.name.text === 'registrarFalha') {
+            registradores.push(ts.isPropertyAssignment(p) && ts.isIdentifier(p.initializer) ? p.initializer.text : p.getText(sf))
+          }
+        }
+      }
+    }
+    ts.forEachChild(no, visitar)
+  }
+  visitar(sf)
+  assert.deepEqual(registradores, ['registrarNoConsole'], 'criarNucleoDoShell sem registrarFalha: registrarNoConsole')
   assert.doesNotMatch(fonte, /process\.env\.ERP_LOGIN_TRANSACAO_S|vidaTransacaoS/)
 })
 
