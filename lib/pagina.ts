@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import { criarPaginas } from '@erp/nucleo/app'
 import { criarMolduraDoServidor } from '@erp/moldura/servidor'
 import { nucleo } from './nucleo'
+import { lerHostsDoShell } from './configuracao'
 
 // Só a ligação com o Next. A decisão de acesso (sessão, módulo, origem da action) é do núcleo e a
 // parte visual (menu, toast, destino) é da moldura, uma cópia só para as quatro apps (ADR-0012).
@@ -13,7 +14,7 @@ const cabecalho = async (nome: string) => (await headers()).get(nome)
 
 const paginas = criarPaginas(nucleo, {
   // Hosts do shell que servem esta aplicação ao navegador; os mesmos de `allowedOrigins`.
-  hostsPermitidos: (process.env.SHELL_HOSTS ?? 'localhost:3000').split(','),
+  hostsPermitidos: lerHostsDoShell(),
   next: { cabecalho, naoEncontrado: notFound, redirecionar: redirect, porRequisicao: cache },
   // Menu igual em toda app (moldura comum): o início do shell para toda sessão; a gestão de acesso para quem tem papel.
   entradaInicial: { id: 'inicio', rotulo: 'Início', prefixo: '/' },

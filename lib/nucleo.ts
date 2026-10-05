@@ -7,7 +7,7 @@ import {
   type ProvedorDeIdentidade,
 } from '@erp/nucleo/shell'
 import { clienteRedis } from './redis'
-import { lerNumeroPositivo } from './configuracao'
+import { registrarNoConsole } from './rotas-auth'
 import { NOME_COOKIE_SESSAO } from './cookies'
 
 export { NOME_COOKIE_SESSAO }
@@ -35,16 +35,16 @@ function provedorDeIdentidade(): ProvedorDeIdentidade {
   })
 }
 
-/** Vida do cookie `__Host-erp-login`: a mesma da transação no store (padrão e teto do núcleo). */
-export const vidaTransacaoS = lerNumeroPositivo(process.env.ERP_LOGIN_TRANSACAO_S, 600, 'ERP_LOGIN_TRANSACAO_S', 3_600)
-
 /**
  * Raiz de composição do shell. Só configuração, lida do ambiente. O shell é a ÚNICA
  * aplicação com `criarNucleoDoShell`: grava, renova e encerra sessão; as zonas só leem (N3).
- * `ERP_RENOVACAO_JANELA_S` e `ERP_RENOVACAO_LOCK_S` são lidas pela própria fábrica.
+ * `ERP_RENOVACAO_JANELA_S`, `ERP_RENOVACAO_LOCK_S`, `ERP_RENOVACAO_ESPERA_MS`, `ERP_RENOVACAO_ESPERA_PASSO_MS` e
+ * `ERP_LOGIN_TRANSACAO_S` são lidas pelo próprio núcleo; a vida do cookie da transação vem de `iniciarLogin`.
+ * As falhas que o núcleo registra no servidor saem pelo mesmo registrador das rotas de autenticação.
  */
 export const nucleo = criarNucleoDoShell({
   app: 'shell',
+  registrarFalha: registrarNoConsole,
   // REDIS_URL definido: Redis (showcase, produção); senão, arquivo de desenvolvimento
   sessao: clienteRedis ? sessaoRedis({ cliente: clienteRedis }) : sessaoArquivo({ dir: SESSAO_DIR }),
   lerCookieDeSessao: async () => (await cookies()).get(NOME_COOKIE_SESSAO)?.value,

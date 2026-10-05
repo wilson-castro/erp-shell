@@ -136,3 +136,27 @@ test('rotas publicas, telemetria e estaticos de zona nao renovam', async () => {
   }
   assert.equal(chamadas, 0)
 })
+
+// D19-B (núcleo 0.10.3): com o token JÁ vencido, quem perde o lock espera o vencedor e segue com o token novo,
+// em vez de seguir com o token morto (que o domínio recusaria, levando ao login).
+for (const [nomeStore, criarStore] of Object.entries(STORES)) {
+  test(`token ja vencido (${nomeStore}): 10 requisicoes concorrentes, os perdedores esperam a renovacao e todas seguem`, async () => {
+    const store = criarStore()
+    await store.escritor.gravar('s-1', { ...sessaoVencendo(), tokenExpiraEm: Date.now() - 1_000 })
+    const idp = identidadeContada()
+    const nucleo = nucleoDoShell(store, idp.identidade)
+
+    let prontas = 0
+    const todas = Array.from({ length: 10 }, (_, i) =>
+      pedir(nucleo, { caminho: i % 2 ? '/zona1' : '/' }).then((d) => { prontas++; return d }))
+    await ateQue(() => idp.chamadas() === 1)
+    await ateQue(() => false, 20)
+    assert.equal(prontas, 0, 'com o token vencido, os perdedores do lock esperam o vencedor')
+
+    idp.liberar()
+    const decisoes = await Promise.all(todas)
+    assert.equal(idp.chamadas(), 1, 'exatamente uma ida ao IdP')
+    assert.ok(decisoes.every((d) => d.acao === 'prosseguir' && !d.limparSessao), JSON.stringify(decisoes))
+    assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o vencedor gravou o token novo')
+  })
+}

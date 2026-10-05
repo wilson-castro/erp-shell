@@ -2,23 +2,26 @@
 // real do núcleo com o provedor de desenvolvimento (o mesmo código de transação do OIDC).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { identidadeDev } from '@erp/nucleo/shell'
-import { entrar, retorno, sair } from '../lib/rotas-auth.ts'
+import { entrar, retorno, sair, registrarNoConsole } from '../lib/rotas-auth.ts'
+import { lerHostsDoShell } from '../lib/configuracao.ts'
 import { STORES, sessaoVencendo, identidadeContada, nucleoDoShell } from './apoio-auth.mjs'
 
 const SHELL = 'http://localhost:3000'
-const VIDA_TRANSACAO_S = 600
+const VIDA_TRANSACAO_S = 600   // padrão de ERP_LOGIN_TRANSACAO_S no núcleo
 
 function montar(identidade = identidadeDev(), nomeStore = 'memoria') {
   const store = STORES[nomeStore]()
   const falhas = []
   const nucleo = nucleoDoShell(store, identidade)
-  const deps = { sessao: nucleo.sessao, vidaTransacaoS: VIDA_TRANSACAO_S, registrarFalha: (f) => falhas.push(f), hostsDoShell: ['localhost:3000'] }
+  const deps = { sessao: nucleo.sessao, registrarFalha: (f) => falhas.push(f), hostsDoShell: ['localhost:3000'] }
   return { store, deps, falhas }
 }
 
-const req = (caminho, { metodo = 'GET', cookie, cabecalhos = {} } = {}) =>
-  new Request(`${SHELL}${caminho}`, { method: metodo, headers: { ...cabecalhos, ...(cookie ? { cookie } : {}) } })
+const req = (caminho, { metodo = 'GET', cookie, cabecalhos = {}, base = SHELL } = {}) =>
+  new Request(`${base}${caminho}`, { method: metodo, headers: { ...cabecalhos, ...(cookie ? { cookie } : {}) } })
 
 /** Set-Cookie de um nome, ou `undefined`. */
 const setCookie = (res, nome) => res.headers.getSetCookie().find((c) => c.startsWith(`${nome}=`))
@@ -70,6 +73,24 @@ test('GET /api/auth/entrar com IdP de verdade: Location e a URL do IdP', async (
   const res = await entrar(req('/api/auth/entrar'), deps)
   assert.equal(res.headers.get('location'), 'https://idp.exemplo/auth?state=s1')
   assert.equal(valor(setCookie(res, '__Host-erp-login')), 't1')
+  // o cookie vive o mesmo que a transação: `expiraEm` de `iniciarLogin`, não um padrão do shell
+  assert.match(setCookie(res, '__Host-erp-login'), /; Max-Age=60;/)
+})
+
+test('GET /api/auth/entrar: Max-Age do cookie da transacao segue ERP_LOGIN_TRANSACAO_S lido pelo nucleo', async () => {
+  const antes = process.env.ERP_LOGIN_TRANSACAO_S
+  process.env.ERP_LOGIN_TRANSACAO_S = '90'
+  try {
+    const { deps, store } = montar()
+    const res = await entrar(req('/api/auth/entrar'), deps)
+    const c = setCookie(res, '__Host-erp-login')
+    assert.match(c, /; Max-Age=90;/)
+    const t = await store.escritor.consumirTransacao(valor(c))
+    assert.ok(t.expiraEm - Date.now() <= 90_000 && t.expiraEm - Date.now() > 88_000, 'a transacao no store vive o mesmo')
+  } finally {
+    if (antes === undefined) delete process.env.ERP_LOGIN_TRANSACAO_S
+    else process.env.ERP_LOGIN_TRANSACAO_S = antes
+  }
 })
 
 test('GET /api/auth/entrar com o IdP fora: volta ao login com codigo e supportId, sem cookie e sem detalhe', async () => {
@@ -228,15 +249,18 @@ const RECUSADOS = [
   ['sem Sec-Fetch-Site, Origin de outro site', { origin: 'https://outro.exemplo' }],
   ['sem Sec-Fetch-Site, Origin de outra porta', { origin: 'http://localhost:3001' }],
   ['sem Sec-Fetch-Site, Origin null', { origin: 'null' }],
+  // mesmo host, outro esquema: `https://` e `http://` são origens diferentes (menor do gate do D2)
+  ['sem Sec-Fetch-Site, Origin https do mesmo host numa requisicao http', { origin: 'https://localhost:3000' }],
+  ['sem Sec-Fetch-Site, Origin http do mesmo host numa requisicao https', { origin: 'http://localhost:3000' }, 'https://localhost:3000'],
 ]
-for (const [nome, cabecalhos] of RECUSADOS) {
+for (const [nome, cabecalhos, base] of RECUSADOS) {
   test(`POST /api/auth/sair de outra origem (${nome}): 403 com codigo e supportId, cookie e store intactos`, async () => {
     const idp = identidadeContada({ urlLogout: 'https://idp.exemplo/logout?client_id=erp-shell' })
     let encerrou = 0
     const identidade = { ...idp.identidade, async encerrar(...a) { encerrou++; return idp.identidade.encerrar(...a) } }
     const { deps, store, falhas } = montar(identidade)
     await store.escritor.gravar('s-1', sessaoVencendo())
-    const res = await sair(req('/api/auth/sair', { metodo: 'POST', cookie: '__Host-session=s-1', cabecalhos }), deps)
+    const res = await sair(req('/api/auth/sair', { metodo: 'POST', cookie: '__Host-session=s-1', cabecalhos, base }), deps)
     assert.equal(res.status, 403)
     assert.deepEqual(res.headers.getSetCookie(), [], 'nenhum cookie apagado')
     assert.equal(res.headers.get('location'), null)
@@ -255,15 +279,67 @@ const ACEITOS = [
   ['Sec-Fetch-Site same-origin (o botao Sair do shell)', { 'sec-fetch-site': 'same-origin', origin: SHELL }],
   ['sem Sec-Fetch-Site, Origin do shell', { origin: SHELL }],
   ['sem Sec-Fetch-Site nem Origin', {}],
+  ['sem Sec-Fetch-Site, Origin https do shell numa requisicao https', { origin: 'https://localhost:3000' }, 'https://localhost:3000'],
 ]
-for (const [nome, cabecalhos] of ACEITOS) {
+for (const [nome, cabecalhos, base] of ACEITOS) {
   test(`POST /api/auth/sair da mesma origem (${nome}): encerra e apaga o cookie`, async () => {
     const { deps, store } = montar()
     await store.escritor.gravar('s-1', sessaoVencendo())
-    const res = await sair(req('/api/auth/sair', { metodo: 'POST', cookie: '__Host-session=s-1', cabecalhos }), deps)
+    const res = await sair(req('/api/auth/sair', { metodo: 'POST', cookie: '__Host-session=s-1', cabecalhos, base }), deps)
     assert.equal(res.status, 303)
     assert.equal(res.headers.get('location'), '/login')
     assert.match(setCookie(res, '__Host-session'), /Max-Age=0/)
     assert.equal(await store.leitor.ler('s-1'), null)
   })
 }
+
+test('SHELL_HOSTS: espacos em volta de cada host e itens vazios nao contam; sem a variavel, localhost:3000', () => {
+  assert.deepEqual(lerHostsDoShell(undefined), ['localhost:3000'])
+  assert.deepEqual(lerHostsDoShell('a.exemplo, b.exemplo:8443 ,,'), ['a.exemplo', 'b.exemplo:8443'])
+})
+
+test('POST /api/auth/sair com SHELL_HOSTS com espaco: o segundo host do shell e aceito', async () => {
+  const { deps, store } = montar()
+  deps.hostsDoShell = lerHostsDoShell('erp.exemplo, localhost:3000')
+  await store.escritor.gravar('s-1', sessaoVencendo())
+  const res = await sair(req('/api/auth/sair', { metodo: 'POST', cookie: '__Host-session=s-1', cabecalhos: { origin: SHELL } }), deps)
+  assert.equal(res.status, 303)
+  assert.equal(await store.leitor.ler('s-1'), null)
+})
+
+test('a rota sair e as paginas leem SHELL_HOSTS por lerHostsDoShell, sem split proprio', () => {
+  for (const arquivo of ['app/api/auth/sair/route.ts', 'lib/pagina.ts']) {
+    const fonte = readFileSync(new URL(`../${arquivo}`, import.meta.url), 'utf8')
+    assert.match(fonte, /lerHostsDoShell\(\)/, arquivo)
+    assert.doesNotMatch(fonte, /SHELL_HOSTS[^\n]*split/, arquivo)
+  }
+})
+
+test('registrarNoConsole: uma linha so com etapa ou motivo, codigo e supportId (rotas e nucleo)', () => {
+  const linhas = []
+  const original = console.error
+  console.error = (...a) => linhas.push(a.join(' '))
+  try {
+    registrarNoConsole({ etapa: 'entrar', codigo: 'ERRO_INTERNO', supportId: 'u-1' })
+    registrarNoConsole({ motivo: 'janela-de-renovacao', codigo: 'ERRO_INTERNO', supportId: 'u-2' })
+  } finally { console.error = original }
+  assert.deepEqual(linhas, [
+    '[auth] entrar falhou: codigo=ERRO_INTERNO supportId=u-1',
+    '[auth] renovacao: motivo=janela-de-renovacao codigo=ERRO_INTERNO supportId=u-2',
+  ])
+})
+
+test('lib/nucleo.ts passa o registrador das rotas ao nucleo e nao le ERP_LOGIN_TRANSACAO_S', () => {
+  const fonte = readFileSync(new URL('../lib/nucleo.ts', import.meta.url), 'utf8')
+  assert.match(fonte, /^\s*registrarFalha: registrarNoConsole,$/m)
+  assert.doesNotMatch(fonte, /process\.env\.ERP_LOGIN_TRANSACAO_S|vidaTransacaoS/)
+})
+
+test('lib/cookies.ts e so de servidor: fora da condicao react-server a importacao falha', () => {
+  const cookies = new URL('../lib/cookies.ts', import.meta.url).href
+  const sem = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(cookies)})`], { encoding: 'utf8' })
+  assert.notEqual(sem.status, 0, 'lib/cookies.ts carregou num contexto de cliente')
+  assert.match(sem.stderr, /server-only|Server Component/i)
+  const com = spawnSync(process.execPath, ['--conditions', 'react-server', '--input-type=module', '-e', `await import(${JSON.stringify(cookies)})`], { encoding: 'utf8' })
+  assert.equal(com.status, 0, com.stderr)
+})

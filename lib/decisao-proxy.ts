@@ -45,16 +45,20 @@ const paraLogin = (caminho: string) => `/login?de=${encodeURIComponent(caminho)}
 
 /**
  * Renovação proativa (ADR-0013, decisão 4) de uma requisição com cookie que vai seguir. A fábrica
- * só chama o IdP dentro da janela e para quem ganhou o lock; quem perdeu recebe `em-andamento` na
- * hora, então nenhuma requisição espera a renovação de outra.
+ * só chama o IdP dentro da janela e para quem ganhou o lock. Quem perdeu com o token ainda válido
+ * recebe `em-andamento` na hora e segue com ele, sem esperar. Quem perdeu com o token já vencido
+ * espera o vencedor (D19-B): relê a sessão a cada `ERP_RENOVACAO_ESPERA_PASSO_MS`, sem ir ao IdP, e
+ * recebe `em-dia` quando o token novo aparece, `ausente` se a sessão acabou, ou `em-andamento` no
+ * teto (`ERP_RENOVACAO_ESPERA_MS`). São os estados de sempre: a decisão abaixo não distingue os casos.
  *
  * - `revogada` ou `ausente`: a sessão acabou. Navegação (`GET`/`HEAD`) vai ao login; o resto
  *   (Server Action, `POST` de route handler) segue para a camada 2 responder do jeito dela, que é
  *   o que a action sabe transformar em ida ao login. Nos dois casos o cookie morto é apagado.
  * - Erro (IdP ou store fora): a sessão fica e a requisição segue; o lock da fábrica segura novas
  *   tentativas até vencer. Com o token ainda válido, um IdP instável não desloga ninguém; com o
- *   token já vencido, a requisição segue com ele e o domínio responde 401, que leva ao login. O
- *   mesmo vale para quem perde o lock com o token vencido (DEFERRED.md, D19).
+ *   token já vencido, a requisição segue com ele e o domínio responde 401, que leva ao login. Quem
+ *   perde o lock nesse caso só chega aí depois do teto da espera: com o IdP fora, o lock preso
+ *   segura as idas ao IdP e cada requisição com o token vencido espera o teto antes de seguir.
  */
 async function prosseguirComRenovacao(
   contexto: ContextoRequisicaoProxy, renovar: RenovarSessao | undefined, nonce: string,

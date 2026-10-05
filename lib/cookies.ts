@@ -1,3 +1,5 @@
+import 'server-only'
+
 /**
  * Cookies do shell. `__Host-` exige `Secure` e `Path=/` e proíbe `Domain`: o cookie fica preso à
  * origem do shell. `SameSite=Lax` deixa os dois chegarem na navegação de topo que volta do IdP.

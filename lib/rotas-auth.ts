@@ -1,6 +1,6 @@
 import 'server-only'
 import { randomUUID } from 'node:crypto'
-import type { NucleoDoShell } from '@erp/nucleo/shell'
+import type { ConfigDoNucleoDoShell, NucleoDoShell } from '@erp/nucleo/shell'
 import { NOME_COOKIE_LOGIN, NOME_COOKIE_SESSAO, apagarCookie, cookieDoShell, lerCookie } from './cookies.ts'
 import { destinoInterno } from './destino-interno.ts'
 
@@ -11,10 +11,11 @@ export type FalhaDeAutenticacao = {
   supportId: string
 }
 
+/** Falha que o núcleo registra no servidor (hoje só `janela-de-renovacao`): motivo, código e `supportId`. */
+export type FalhaDoNucleo = Parameters<NonNullable<ConfigDoNucleoDoShell['registrarFalha']>>[0]
+
 export type DependenciasDeAutenticacao = {
   sessao: Pick<NucleoDoShell['sessao'], 'iniciarLogin' | 'concluirLogin' | 'encerrarSessao'>
-  /** `ERP_LOGIN_TRANSACAO_S`: o cookie da transação vive o mesmo que ela no store. */
-  vidaTransacaoS: number
   registrarFalha?: (falha: FalhaDeAutenticacao) => void
 }
 
@@ -31,8 +32,9 @@ function irPara(destino: string, ...cookies: string[]): Response {
 /**
  * O pedido veio de uma página do próprio shell? `Sec-Fetch-Site` decide quando vem: só `same-origin`
  * passa (`same-site` é outro subdomínio, que não é o shell). Sem ele (navegador antigo), `Origin`
- * presente tem de ser de um host do shell. Sem nenhum dos dois, aceita: não é navegador moderno
- * num formulário de outro site, e o `SameSite=Lax` do cookie já impede encerrar a sessão de lá.
+ * presente tem de ser de um host do shell COM o esquema da requisição: `http://` e `https://` do
+ * mesmo host são origens diferentes. Sem nenhum dos dois, aceita: não é navegador moderno num
+ * formulário de outro site, e o `SameSite=Lax` do cookie já impede encerrar a sessão de lá.
  */
 function mesmaOrigem(req: Request, hostsDoShell: readonly string[]): boolean {
   const site = req.headers.get('sec-fetch-site')
@@ -40,14 +42,21 @@ function mesmaOrigem(req: Request, hostsDoShell: readonly string[]): boolean {
   const origem = req.headers.get('origin')
   if (origem === null) return true
   try {
-    return hostsDoShell.includes(new URL(origem).host)
+    const o = new URL(origem)
+    return o.protocol === new URL(req.url).protocol && hostsDoShell.includes(o.host)
   } catch {
     return false   // `Origin: null` (documento opaco) ou valor que não é URL
   }
 }
 
-const registrarNoConsole = (f: FalhaDeAutenticacao) =>
-  console.error(`[auth] ${f.etapa} falhou: codigo=${f.codigo} supportId=${f.supportId}`)
+/**
+ * O registrador do shell no servidor: uma linha, só a etapa (ou o motivo do núcleo), o código e o
+ * `supportId`. Serve às rotas de autenticação e ao núcleo (`registrarFalha` em `lib/nucleo.ts`).
+ */
+export function registrarNoConsole(f: FalhaDeAutenticacao | FalhaDoNucleo): void {
+  const onde = 'etapa' in f ? `${f.etapa} falhou:` : `renovacao: motivo=${f.motivo}`
+  console.error(`[auth] ${onde} codigo=${f.codigo} supportId=${f.supportId}`)
+}
 
 /**
  * IdP ou store fora (o núcleo lança erro já normalizado): volta ao login com `{ codigo, supportId }`
@@ -67,13 +76,15 @@ function falhar(etapa: FalhaDeAutenticacao['etapa'], deps: DependenciasDeAutenti
  */
 export async function entrar(req: Request, deps: DependenciasDeAutenticacao): Promise<Response> {
   const de = destinoInterno(new URL(req.url).searchParams.get('de'))
-  let inicio: { url: string; idTransacao: string }
+  let inicio: Awaited<ReturnType<DependenciasDeAutenticacao['sessao']['iniciarLogin']>>
   try {
     inicio = await deps.sessao.iniciarLogin(de)
   } catch {
     return falhar('entrar', deps)
   }
-  return irPara(inicio.url, cookieDoShell(NOME_COOKIE_LOGIN, inicio.idTransacao, deps.vidaTransacaoS))
+  // o cookie vive o mesmo que a transação no store: `expiraEm` vem do núcleo (`ERP_LOGIN_TRANSACAO_S`)
+  const vidaS = Math.max(0, Math.ceil((inicio.expiraEm - Date.now()) / 1000))
+  return irPara(inicio.url, cookieDoShell(NOME_COOKIE_LOGIN, inicio.idTransacao, vidaS))
 }
 
 /**
