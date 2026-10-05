@@ -52,7 +52,9 @@ const paraLogin = (caminho: string) => `/login?de=${encodeURIComponent(caminho)}
  *   (Server Action, `POST` de route handler) segue para a camada 2 responder do jeito dela, que é
  *   o que a action sabe transformar em ida ao login. Nos dois casos o cookie morto é apagado.
  * - Erro (IdP ou store fora): a sessão fica e a requisição segue; o lock da fábrica segura novas
- *   tentativas até vencer. Um IdP instável não desloga ninguém.
+ *   tentativas até vencer. Com o token ainda válido, um IdP instável não desloga ninguém; com o
+ *   token já vencido, a requisição segue com ele e o domínio responde 401, que leva ao login. O
+ *   mesmo vale para quem perde o lock com o token vencido (DEFERRED.md, D19).
  */
 async function prosseguirComRenovacao(
   contexto: ContextoRequisicaoProxy, renovar: RenovarSessao | undefined, nonce: string,

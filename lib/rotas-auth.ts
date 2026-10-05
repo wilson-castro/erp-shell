@@ -5,7 +5,11 @@ import { NOME_COOKIE_LOGIN, NOME_COOKIE_SESSAO, apagarCookie, cookieDoShell, ler
 import { destinoInterno } from './destino-interno.ts'
 
 /** Falha registrada no servidor: só a etapa e o par que o navegador também vê. */
-export type FalhaDeAutenticacao = { etapa: 'entrar' | 'retorno' | 'sair'; codigo: 'ERRO_INTERNO'; supportId: string }
+export type FalhaDeAutenticacao = {
+  etapa: 'entrar' | 'retorno' | 'sair'
+  codigo: 'ERRO_INTERNO' | 'OPERACAO_NAO_PERMITIDA'
+  supportId: string
+}
 
 export type DependenciasDeAutenticacao = {
   sessao: Pick<NucleoDoShell['sessao'], 'iniciarLogin' | 'concluirLogin' | 'encerrarSessao'>
@@ -14,11 +18,32 @@ export type DependenciasDeAutenticacao = {
   registrarFalha?: (falha: FalhaDeAutenticacao) => void
 }
 
+/** `sair` confere a origem do pedido: `SHELL_HOSTS`, os mesmos hosts de `hostsPermitidos` das páginas. */
+export type DependenciasDeSaida = DependenciasDeAutenticacao & { hostsDoShell: readonly string[] }
+
 /** Location relativo quando é do shell: a URL absoluta de `req.url` pode ser a origem interna do processo. */
 function irPara(destino: string, ...cookies: string[]): Response {
   const headers = new Headers({ Location: destino })
   for (const c of cookies) headers.append('Set-Cookie', c)
   return new Response(null, { status: 303, headers })
+}
+
+/**
+ * O pedido veio de uma página do próprio shell? `Sec-Fetch-Site` decide quando vem: só `same-origin`
+ * passa (`same-site` é outro subdomínio, que não é o shell). Sem ele (navegador antigo), `Origin`
+ * presente tem de ser de um host do shell. Sem nenhum dos dois, aceita: não é navegador moderno
+ * num formulário de outro site, e o `SameSite=Lax` do cookie já impede encerrar a sessão de lá.
+ */
+function mesmaOrigem(req: Request, hostsDoShell: readonly string[]): boolean {
+  const site = req.headers.get('sec-fetch-site')
+  if (site !== null) return site === 'same-origin'
+  const origem = req.headers.get('origin')
+  if (origem === null) return true
+  try {
+    return hostsDoShell.includes(new URL(origem).host)
+  } catch {
+    return false   // `Origin: null` (documento opaco) ou valor que não é URL
+  }
 }
 
 const registrarNoConsole = (f: FalhaDeAutenticacao) =>
@@ -72,12 +97,19 @@ export async function retorno(req: Request, deps: DependenciasDeAutenticacao): P
 }
 
 /**
- * `POST /api/auth/sair`: a fábrica remove a sessão do store ANTES de pedir ao IdP a URL de logout,
+ * `POST /api/auth/sair`: um formulário de outro site recebe `403` com `{ codigo, supportId }` e nada
+ * muda: nem o cookie é apagado nem o store é tocado (logout CSRF, N2 da revisão final do D2).
+ * Da mesma origem, a fábrica remove a sessão do store ANTES de pedir ao IdP a URL de logout,
  * então ela acaba em todas as zonas na próxima requisição. Se o IdP falhar, a sessão local já
  * acabou: o cookie é apagado do mesmo jeito e o navegador vai ao login do shell. A URL do IdP não
  * leva token, só `client_id` e `post_logout_redirect_uri` (invariante 1).
  */
-export async function sair(req: Request, deps: DependenciasDeAutenticacao): Promise<Response> {
+export async function sair(req: Request, deps: DependenciasDeSaida): Promise<Response> {
+  if (!mesmaOrigem(req, deps.hostsDoShell)) {
+    const falha: FalhaDeAutenticacao = { etapa: 'sair', codigo: 'OPERACAO_NAO_PERMITIDA', supportId: randomUUID() }
+    ;(deps.registrarFalha ?? registrarNoConsole)(falha)
+    return Response.json({ codigo: falha.codigo, supportId: falha.supportId }, { status: 403 })
+  }
   const semSessao = apagarCookie(NOME_COOKIE_SESSAO)
   try {
     const { urlLogout } = await deps.sessao.encerrarSessao(lerCookie(req, NOME_COOKIE_SESSAO))

@@ -13,12 +13,12 @@ function montar(identidade = identidadeDev(), nomeStore = 'memoria') {
   const store = STORES[nomeStore]()
   const falhas = []
   const nucleo = nucleoDoShell(store, identidade)
-  const deps = { sessao: nucleo.sessao, vidaTransacaoS: VIDA_TRANSACAO_S, registrarFalha: (f) => falhas.push(f) }
+  const deps = { sessao: nucleo.sessao, vidaTransacaoS: VIDA_TRANSACAO_S, registrarFalha: (f) => falhas.push(f), hostsDoShell: ['localhost:3000'] }
   return { store, deps, falhas }
 }
 
-const req = (caminho, { metodo = 'GET', cookie } = {}) =>
-  new Request(`${SHELL}${caminho}`, { method: metodo, headers: cookie ? { cookie } : {} })
+const req = (caminho, { metodo = 'GET', cookie, cabecalhos = {} } = {}) =>
+  new Request(`${SHELL}${caminho}`, { method: metodo, headers: { ...cabecalhos, ...(cookie ? { cookie } : {}) } })
 
 /** Set-Cookie de um nome, ou `undefined`. */
 const setCookie = (res, nome) => res.headers.getSetCookie().find((c) => c.startsWith(`${nome}=`))
@@ -219,3 +219,51 @@ test('POST /api/auth/sair sem cookie: so apaga e vai ao login', async () => {
   assert.equal(res.headers.get('location'), '/login')
   assert.match(setCookie(res, '__Host-session'), /Max-Age=0/)
 })
+
+// N2 da revisão final do D2 (logout CSRF): de outro site, 403 sem apagar o cookie nem tocar o store.
+const RECUSADOS = [
+  ['Sec-Fetch-Site cross-site', { 'sec-fetch-site': 'cross-site', origin: 'https://outro.exemplo' }],
+  ['Sec-Fetch-Site same-site', { 'sec-fetch-site': 'same-site', origin: 'https://irmao.localhost:3000' }],
+  ['Sec-Fetch-Site cross-site com Origin do shell', { 'sec-fetch-site': 'cross-site', origin: SHELL }],
+  ['sem Sec-Fetch-Site, Origin de outro site', { origin: 'https://outro.exemplo' }],
+  ['sem Sec-Fetch-Site, Origin de outra porta', { origin: 'http://localhost:3001' }],
+  ['sem Sec-Fetch-Site, Origin null', { origin: 'null' }],
+]
+for (const [nome, cabecalhos] of RECUSADOS) {
+  test(`POST /api/auth/sair de outra origem (${nome}): 403 com codigo e supportId, cookie e store intactos`, async () => {
+    const idp = identidadeContada({ urlLogout: 'https://idp.exemplo/logout?client_id=erp-shell' })
+    let encerrou = 0
+    const identidade = { ...idp.identidade, async encerrar(...a) { encerrou++; return idp.identidade.encerrar(...a) } }
+    const { deps, store, falhas } = montar(identidade)
+    await store.escritor.gravar('s-1', sessaoVencendo())
+    const res = await sair(req('/api/auth/sair', { metodo: 'POST', cookie: '__Host-session=s-1', cabecalhos }), deps)
+    assert.equal(res.status, 403)
+    assert.deepEqual(res.headers.getSetCookie(), [], 'nenhum cookie apagado')
+    assert.equal(res.headers.get('location'), null)
+    const corpo = await res.clone().json()
+    assert.deepEqual(Object.keys(corpo).sort(), ['codigo', 'supportId'])
+    assert.equal(corpo.codigo, 'OPERACAO_NAO_PERMITIDA')
+    assert.match(corpo.supportId, /^[0-9a-f-]{36}$/)
+    assert.deepEqual(falhas, [{ etapa: 'sair', codigo: 'OPERACAO_NAO_PERMITIDA', supportId: corpo.supportId }])
+    assert.ok(await store.leitor.ler('s-1'), 'a sessao continua no store')
+    assert.equal(encerrou, 0, 'o IdP nao foi chamado')
+    await semVazamento(res)
+  })
+}
+
+const ACEITOS = [
+  ['Sec-Fetch-Site same-origin (o botao Sair do shell)', { 'sec-fetch-site': 'same-origin', origin: SHELL }],
+  ['sem Sec-Fetch-Site, Origin do shell', { origin: SHELL }],
+  ['sem Sec-Fetch-Site nem Origin', {}],
+]
+for (const [nome, cabecalhos] of ACEITOS) {
+  test(`POST /api/auth/sair da mesma origem (${nome}): encerra e apaga o cookie`, async () => {
+    const { deps, store } = montar()
+    await store.escritor.gravar('s-1', sessaoVencendo())
+    const res = await sair(req('/api/auth/sair', { metodo: 'POST', cookie: '__Host-session=s-1', cabecalhos }), deps)
+    assert.equal(res.status, 303)
+    assert.equal(res.headers.get('location'), '/login')
+    assert.match(setCookie(res, '__Host-session'), /Max-Age=0/)
+    assert.equal(await store.leitor.ler('s-1'), null)
+  })
+}
