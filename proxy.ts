@@ -25,6 +25,8 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
     case 'telemetria':
     case 'zona-estatica':
       return NextResponse.next()
+    case 'nao-encontrado':
+      return new NextResponse(null, { status: 404, headers: { 'cache-control': 'no-store' } })
 
     case 'zona-inativa':
       return new NextResponse(decisao.html, {

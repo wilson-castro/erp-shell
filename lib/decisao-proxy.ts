@@ -10,6 +10,8 @@ import { renderizarPaginaErroDeZona } from './pagina-erro-zona.ts'
 export type DecisaoProxy =
   | { readonly acao: 'publico'; readonly nonce: string }
   | { readonly acao: 'telemetria' }
+  // `/{zona}/_fragmento/...` é composição servidor→servidor (ADR-0011, decisão 8): do navegador, não existe
+  | { readonly acao: 'nao-encontrado' }
   | {
       readonly acao: 'zona-inativa'
       readonly idZona: string
@@ -42,6 +44,14 @@ export type RenovarSessao = (id: string | undefined) => Promise<EstadoDaRenovaca
 const noSegmento = (caminho: string, prefixo: string) => caminho === prefixo || caminho.startsWith(`${prefixo}/`)
 
 const paraLogin = (caminho: string) => `/login?de=${encodeURIComponent(caminho)}`
+
+/** Segundo segmento `_fragmento`, em qualquer caixa. Decodifica antes: `%5Ffragmento` chega à zona como `_fragmento`. */
+const FRAGMENTO = /^\/[^/]+\/_fragmento(?:\/|$)/i
+function ehFragmento(caminho: string): boolean {
+  let decodificado = caminho
+  try { decodificado = decodeURIComponent(caminho) } catch { /* `%` solto: fica como veio */ }
+  return FRAGMENTO.test(decodificado)
+}
 
 /**
  * Renovação proativa (ADR-0013, decisão 4) de uma requisição com cookie que vai seguir. A fábrica
@@ -106,6 +116,8 @@ export async function decidirAcaoDoProxy(
   // 3. Rota de zona (ex.: /zona1, /zona1/*, /zona1-static/*)
   const zona = encontrarZonaPorCaminho(caminho, zonas)
   if (zona) {
+    // antes da sonda e do cookie: não revela se a zona está no ar nem manda ao login
+    if (ehFragmento(caminho)) return { acao: 'nao-encontrado' }
     const saudavel = await cacheSaude.verificar(zona.urlSaude)
     if (!saudavel) {
       return {

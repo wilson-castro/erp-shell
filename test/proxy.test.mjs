@@ -95,3 +95,28 @@ test('U6: /api fora de /api/otel e /api/auth continua exigindo cookie', async ()
     assert.equal(d.acao, 'redirecionar-login', caminho)
   }
 })
+
+// --- C1 (ADR-0011, decisao 8): fragmento e servidor->servidor; do navegador, nao existe ---
+test('C1: /{zona}/_fragmento/ e 404 no shell, com ou sem cookie, em qualquer grafia, sem consultar a sonda', async () => {
+  const sondaProibida = { verificar: async () => { throw new Error('a sonda nao deveria rodar') }, limpar() {} }
+  const caminhos = [
+    '/zona2/_fragmento/tarefas/pendentes', '/ZONA2/_FRAGMENTO/tarefas/pendentes', '/zona1/_fragmento/x/y',
+    '/zona2/%5Ffragmento/tarefas/pendentes', '/zona2/%5ffragmento/x', '/zona2/_fragmento', '/zona2/_fragmento/',
+  ]
+  for (const caminho of caminhos) {
+    for (const temCookieSessao of [true, false]) {
+      const d = await decidirAcaoDoProxy({ caminho, temCookieSessao }, sondaProibida)
+      assert.equal(d.acao, 'nao-encontrado', `${caminho} cookie=${temCookieSessao}`)
+    }
+  }
+})
+
+test('C1: so o segmento _fragmento logo depois do prefixo da zona e recusado (dentes do teste acima)', async () => {
+  const sondaOk = { verificar: async () => true, limpar() {} }
+  for (const caminho of ['/zona2/_fragmentos/x', '/zona2/x/_fragmento/y', '/zona2/tarefas_fragmento', '/zona2/%zz/_fragmento']) {
+    const d = await decidirAcaoDoProxy({ caminho, temCookieSessao: true }, sondaOk)
+    assert.equal(d.acao, 'prosseguir', caminho)
+  }
+  // fora de zona nao ha fragmento a proteger: o shell segue a regra de sempre
+  assert.equal((await decidirAcaoDoProxy({ caminho: '/_fragmento/x', temCookieSessao: false }, sondaOk)).acao, 'redirecionar-login')
+})
