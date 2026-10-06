@@ -160,3 +160,42 @@ for (const [nomeStore, criarStore] of Object.entries(STORES)) {
     assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o vencedor gravou o token novo')
   })
 }
+
+// auditor_d19b_1 (A10, A10c, A10d): o store que lança dentro de `renovarSessao` com o token vencido é erro,
+// não ausência. A requisição segue e o cookie fica; `ausente` mandaria ao login com a sessão intacta (D19).
+// Vale nas três leituras da fábrica: antes do lock, com o lock na mão e durante a espera do perdedor.
+const MOMENTOS_DA_FALHA = [
+  // [nome, leitura que lança (1 = a primeira), lock de outro dono?]
+  ['antes do lock', 1, false],
+  ['na releitura com o lock na mao', 2, false],
+  ['durante a espera do perdedor', 2, true],
+]
+for (const [nomeStore, criarStore] of Object.entries(STORES)) {
+  for (const [momento, falharNa, lockDeOutro] of MOMENTOS_DA_FALHA) {
+    test(`store fora ${momento} (${nomeStore}): token vencido, a requisicao segue sem apagar o cookie e a sessao fica`, { timeout: 10_000 }, async () => {
+      // um store novo por caminho: o lock que a primeira requisição prende mudaria o momento da segunda
+      for (const caminho of ['/zona1', '/']) {
+        const store = criarStore()
+        await store.escritor.gravar('s-1', { ...sessaoVencendo(), tokenExpiraEm: Date.now() - 1_000 })
+        if (lockDeOutro) assert.ok(await store.escritor.adquirirLockRenovacao('s-1', 60_000), 'lock de outro processo')
+        let leituras = 0
+        const leitor = {
+          ler: async (k) => {
+            if (++leituras >= falharNa) throw new Error('store fora do ar')
+            return store.leitor.ler(k)
+          },
+        }
+        const idp = identidadeContada()
+        idp.liberar()
+        const inicio = Date.now()
+        const d = await pedir(nucleoDoShell({ leitor, escritor: store.escritor }, idp.identidade), { caminho })
+        assert.equal(leituras, falharNa, 'a falha nao aconteceu no momento pedido')
+        assert.equal(d.acao, 'prosseguir', `${caminho}: ${JSON.stringify(d)}`)
+        assert.equal(d.limparSessao, undefined, `${caminho}: erro do store apagou o cookie`)
+        assert.ok(Date.now() - inicio < 1_000, 'esperou o teto em vez de propagar o erro')
+        assert.equal(idp.chamadas(), 0, 'chamou o IdP sem ter lido a sessao')
+        assert.equal((await store.leitor.ler('s-1')).accessToken, 'antigo.ana', 'a sessao mudou ou sumiu')
+      }
+    })
+  }
+}
