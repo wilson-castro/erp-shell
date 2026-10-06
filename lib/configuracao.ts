@@ -21,3 +21,19 @@ export function lerNumeroPositivo(valor: string | undefined, padrao: number, nom
 export function lerHostsDoShell(valor: string | undefined = process.env.SHELL_HOSTS): string[] {
   return (valor ?? 'localhost:3000').split(',').map((h) => h.trim()).filter((h) => h !== '')
 }
+
+/**
+ * Teto de silêncio de uma zona, em ms (`ERP_ZONA_TETO_MS`, docs/CONFIGURACAO.md §2; padrão 10 s, decisão B1). Vira o
+ * `experimental.proxyTimeout` do Next: a resposta repassada é cortada quando a zona passa esse tempo **sem mandar nenhum
+ * byte** (inatividade do socket, não duração; streaming que segue mandando dados não é cortado). Tem de passar o timeout
+ * de domínio: senão a página que espera um domínio lento seria cortada antes de degradar (D7).
+ */
+export function lerTetoDaZona(env: NodeJS.ProcessEnv = process.env): number {
+  const teto = lerNumeroPositivo(env.ERP_ZONA_TETO_MS, 10_000, 'ERP_ZONA_TETO_MS', 120_000)
+  // mesmo padrão e teto do núcleo (`interno/configuracao.ts`), que não exporta o leitor
+  const destino = lerNumeroPositivo(env.ERP_DESTINO_TIMEOUT_MS, 5_000, 'ERP_DESTINO_TIMEOUT_MS', 60_000)
+  if (teto <= destino) {
+    throw new Error(`configuracao invalida: ERP_ZONA_TETO_MS (${teto}) deve ser maior que ERP_DESTINO_TIMEOUT_MS (${destino})`)
+  }
+  return teto
+}
