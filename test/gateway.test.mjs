@@ -35,6 +35,12 @@ before(async () => {
       case '/zona1/location-interna':
         res.writeHead(302, { location: `${origem}/zona1/destino?a=1#f` })
         return res.end()
+      case '/zona1/location-barras':
+        res.writeHead(302, { location: `${origem}//outro.host/x?a=1` })
+        return res.end()
+      case '/zona1/location-contrabarra':
+        res.writeHead(302, { location: `${origem}/\\outro.host/x` })
+        return res.end()
       case '/zona1/location-externa':
         res.writeHead(303, { location: 'https://idp.exemplo/sair?x=1' })
         return res.end()
@@ -122,6 +128,17 @@ test('tira os hop-by-hop da resposta (inclusive os nomeados em Connection) e da 
   assert.notEqual(vistos['keep-alive'], 'timeout=1')
   assert.equal(vistos['x-segue'], 'sim')
   assert.equal(vistos.cookie, '__Host-session=s1', 'o cookie da sessao chega a zona (ela le a sessao)')
+})
+
+test('Location da origem interna com // ou /\\ no inicio nao vira URL sem protocolo (redirecionamento aberto)', async () => {
+  const { g } = gateway()
+  for (const c of ['/zona1/location-barras', '/zona1/location-contrabarra']) {
+    const r = await g(pedido(c))
+    const loc = r.headers.get('location')
+    assert.ok(!/^[/\\]{2}/.test(loc), `${c}: Location ${loc} comeca com duas barras`)
+    assert.ok(loc.startsWith('/'), `${c}: Location ${loc}`)
+  }
+  assert.equal((await g(pedido('/zona1/location-barras'))).headers.get('location'), '/outro.host/x?a=1')
 })
 
 test('Location com a origem interna vira caminho relativo; Location de fora fica', async () => {

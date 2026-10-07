@@ -91,11 +91,17 @@ export function lerRetentativaDoMapaVazio(env: NodeJS.ProcessEnv = process.env):
 
 /**
  * Silêncio máximo de uma resposta de zona DEPOIS do primeiro byte, no gateway de documento (`ERP_ZONA_OCIOSIDADE_MS`,
- * padrão 10 s, teto 120 s). Estourou: a resposta é cortada sem página (o status já saiu). Limite declarado
+ * padrão 10 s, teto 120 s; maior que `ERP_DESTINO_TIMEOUT_MS`). Estourou: a resposta é cortada sem página (o status já saiu). Limite declarado
  * de qualquer repasse com streaming (ADR-0015, decisão 7).
  */
 export function lerOciosidadeDaZona(env: NodeJS.ProcessEnv = process.env): number {
-  return lerNumeroPositivo(env.ERP_ZONA_OCIOSIDADE_MS, 10_000, 'ERP_ZONA_OCIOSIDADE_MS', 120_000)
+  const ociosidade = lerNumeroPositivo(env.ERP_ZONA_OCIOSIDADE_MS, 10_000, 'ERP_ZONA_OCIOSIDADE_MS', 120_000)
+  // uma resposta que espera o domínio lento fica muda até o timeout de destino: cortar antes disso a mataria no meio
+  const destino = lerTimeoutDeDestino(env)
+  if (ociosidade <= destino) {
+    throw new Error(`configuracao invalida: ERP_ZONA_OCIOSIDADE_MS (${ociosidade}) deve ser maior que ERP_DESTINO_TIMEOUT_MS (${destino})`)
+  }
+  return ociosidade
 }
 
 /**

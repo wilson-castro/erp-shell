@@ -216,7 +216,9 @@ function locationRelativo(valor: string, zona: ZonaDoMapa): string {
   try {
     const u = new URL(valor, zona.origem)
     const absoluto = /^[a-z][a-z0-9+.-]*:/i.test(valor) || valor.startsWith('//')
-    if (absoluto && u.origin === zona.origem) return `${u.pathname}${u.search}${u.hash}`
+    // `http://<origem>//outro.host/x` tem pathname `//outro.host/x`, que o navegador leria como URL sem protocolo
+    // (redirecionamento aberto): barras ou contrabarras iniciais viram uma só
+    if (absoluto && u.origin === zona.origem) return `${u.pathname.replace(/^[/\\]+/, '/')}${u.search}${u.hash}`
   } catch { /* não é URL: fica como veio */ }
   return valor
 }

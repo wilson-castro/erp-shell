@@ -258,8 +258,13 @@ test('configuracao: intervalo do mapa vazio, ociosidade da zona e verificacao de
   assert.throws(() => lerRetentativaDoMapaVazio({ ERP_MAPA_ZONAS_RETENTATIVA_MS: '30001' }), /ERP_MAPA_ZONAS_RETENTATIVA_MS/)
   assert.throws(() => lerRetentativaDoMapaVazio({ ERP_MAPA_ZONAS_RETENTATIVA_MS: '0' }))
   assert.equal(lerOciosidadeDaZona({}), 10000)
-  assert.equal(lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '3000' }), 3000)
+  assert.equal(lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '6000' }), 6000)
   assert.throws(() => lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '120001' }), /ERP_ZONA_OCIOSIDADE_MS/)
+  // maior que o timeout de domínio (padrão 5000), como o teto da zona
+  assert.throws(() => lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '5000' }), /maior que ERP_DESTINO_TIMEOUT_MS \(5000\)/)
+  assert.throws(() => lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '3000' }), /maior que ERP_DESTINO_TIMEOUT_MS/)
+  assert.throws(() => lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '8000', ERP_DESTINO_TIMEOUT_MS: '8000' }), /maior que ERP_DESTINO_TIMEOUT_MS \(8000\)/)
+  assert.equal(lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '3000', ERP_DESTINO_TIMEOUT_MS: '2000' }), 3000)
   const prod = { NODE_ENV: 'production', ERP_TOKEN_SERVICO: 'svc.shell', ERP_ZONAS_ORIGENS_PERMITIDAS: '127.0.0.1:*' }
   assert.doesNotThrow(() => verificarConfiguracaoDoShell(prod))
   assert.throws(() => verificarConfiguracaoDoShell({ ...prod, ERP_ZONAS_ORIGENS_PERMITIDAS: undefined }), /ERP_ZONAS_ORIGENS_PERMITIDAS/)
