@@ -287,3 +287,14 @@ test('instancia do shell e preguicosa: importar sem configuracao de producao nao
     Object.assign(process.env, antes)
   }
 })
+
+test('encontrar: prefixo estatico casa com fronteira de segmento (zona1-staticx nao e de zona1)', async () => {
+  const { mapa } = ambiente({ fonte: async () => [entrada('zona1', 4001), entrada('zona1-staticx', 4002)] })
+  assert.equal((await mapa.encontrar('/zona1-staticx/a'))?.id, 'zona1-staticx')
+  assert.equal((await mapa.encontrar('/zona1-static/a.js'))?.id, 'zona1')
+  assert.equal((await mapa.encontrar('/zona1-static'))?.id, 'zona1')
+  const so = ambiente({ fonte: async () => [entrada('zona1', 4001)] }).mapa
+  assert.equal(await so.encontrar('/zona1-staticx'), null)
+  assert.equal(await so.encontrar('/zona1-staticx/a'), null)
+  assert.notEqual((await mapa.encontrar('/zona1-staticx'))?.id, 'zona1')
+})
