@@ -9,6 +9,7 @@ import {
 import { clienteRedis } from './redis'
 import { registrarNoConsole } from './rotas-auth'
 import { NOME_COOKIE_SESSAO } from './cookies'
+import { lerTokenDeServico } from './configuracao.ts'
 
 export { NOME_COOKIE_SESSAO }
 
@@ -51,6 +52,8 @@ export const nucleo = criarNucleoDoShell({
   // núcleo 8: o proxy pôs um traceparent na requisição; cada chamada ao domínio leva um filho
   lerTraceparent: async () => (await headers()).get('traceparent') ?? undefined,
   acesso: acessoHttp({ destino: 'gestao-acesso' }),
+  // credencial 'servico' do destino `mapa-zonas`: `ERP_TOKEN_SERVICO`, padrão `svc.shell` só fora de produção
+  tokenDeServico: () => lerTokenDeServico(),
   destinos: {
     // domínio do próprio shell (N7)
     plataforma: {
@@ -61,6 +64,11 @@ export const nucleo = criarNucleoDoShell({
     'gestao-acesso': {
       origem: process.env.ACESSO_URL ?? 'http://127.0.0.1:4020',
       caminhos: ['/v2/eu'], metodos: ['GET'], credencial: 'usuario', timeoutMs: 1000,
+    },
+    // mapa vivo de zonas (ADR-0015): a gestão de acesso só responde a este token de serviço
+    'mapa-zonas': {
+      origem: process.env.ACESSO_URL ?? 'http://127.0.0.1:4020',
+      caminhos: ['/v2/zonas'], metodos: ['GET'], credencial: 'servico', timeoutMs: 2000,
     },
     // Coletor OTLP: só existe se configurado. O gateway /api/otel repassa por aqui, não por
     // `fetch` direto, para o repasse ter allowlist, timeout e nenhum redirecionamento (N8).

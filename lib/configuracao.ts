@@ -37,3 +37,34 @@ export function lerTetoDaZona(env: NodeJS.ProcessEnv = process.env): number {
   }
   return teto
 }
+
+/** TTL do mapa vivo de zonas (`ERP_MAPA_ZONAS_TTL_MS`, docs/CONFIGURACAO.md §2): padrão 30 s, teto 300 s; abaixo de 1 s é recusado. */
+export function lerTtlDoMapaDeZonas(env: NodeJS.ProcessEnv = process.env): number {
+  const ttl = lerNumeroPositivo(env.ERP_MAPA_ZONAS_TTL_MS, 30_000, 'ERP_MAPA_ZONAS_TTL_MS', 300_000)
+  if (ttl < 1000) throw new Error(`configuracao invalida: ERP_MAPA_ZONAS_TTL_MS deve ser no minimo 1000, recebeu "${env.ERP_MAPA_ZONAS_TTL_MS}"`)
+  return ttl
+}
+
+/** Validade do último mapa bom guardado no Redis, em segundos (`ERP_MAPA_ZONAS_GUARDA_S`): padrão 1 dia, teto 7 dias. */
+export function lerValidadeDaGuardaDoMapa(env: NodeJS.ProcessEnv = process.env): number {
+  return lerNumeroPositivo(env.ERP_MAPA_ZONAS_GUARDA_S, 86_400, 'ERP_MAPA_ZONAS_GUARDA_S', 604_800)
+}
+
+/**
+ * Padrões `host:porta` das origens que o mapa vivo aceita (`ERP_ZONAS_ORIGENS_PERMITIDAS`, lista por vírgula).
+ * Sem a variável: `127.0.0.1:*,localhost:*` fora de produção; em produção o shell não sobe.
+ */
+export function lerOrigensPermitidas(env: NodeJS.ProcessEnv = process.env): string[] {
+  const bruto = env.ERP_ZONAS_ORIGENS_PERMITIDAS
+  const lista = (bruto ?? '').split(',').map((p) => p.trim()).filter((p) => p !== '')
+  if (lista.length > 0) return lista
+  if (env.NODE_ENV === 'production') {
+    throw new Error('configuracao invalida: ERP_ZONAS_ORIGENS_PERMITIDAS e obrigatoria em producao (lista de host:porta)')
+  }
+  return ['127.0.0.1:*', 'localhost:*']
+}
+
+/** Token de serviço do shell (`ERP_TOKEN_SERVICO`); o padrão `svc.shell` só existe fora de produção. */
+export function lerTokenDeServico(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  return env.ERP_TOKEN_SERVICO || (env.NODE_ENV !== 'production' ? 'svc.shell' : undefined)
+}
