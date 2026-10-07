@@ -178,12 +178,15 @@ export async function decidirAcaoDoProxy(
     if (ehFragmento(caminho)) return { acao: 'nao-encontrado' }
     const saudavel = await cacheSaude.verificar(zona.urlSaude)
     if (!saudavel) {
+      const falha: FalhaDeZona = { zona: zona.id, motivo: 'sonda', codigo: 'ERRO_INTERNO', supportId: randomUUID() }
+      registrarNoConsole(falha)
       return {
         acao: 'zona-inativa',
         idZona: zona.id,
         status: 503,
         headers: CABECALHOS_DA_PAGINA_DA_BASE,
-        html: renderizarPaginaErroDeZona(zona.id),
+        html: renderizarPaginaErroDeZona(zona.id, falha.supportId),
+        supportId: falha.supportId,
       }
     }
 

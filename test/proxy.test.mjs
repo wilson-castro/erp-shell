@@ -173,6 +173,20 @@ test('C3: /_gateway do navegador da 404, com e sem cookie, em qualquer grafia', 
   assert.equal((await decidirAcaoDoProxy({ caminho: '/_gatewayx', temCookieSessao: false }, sondaProibida, mapaFixo())).acao, 'redirecionar-login')
 })
 
+test('invariante 12: zona fora pela sonda tambem da supportId, mostra na pagina e registra uma linha', async () => {
+  const linhas = []
+  const original = console.error
+  console.error = (...a) => linhas.push(a.join(' '))
+  let d
+  try {
+    d = await decidirAcaoDoProxy({ caminho: '/zona1', temCookieSessao: true }, { verificar: async () => false, limpar() {} }, mapaFixo())
+  } finally { console.error = original }
+  assert.equal(d.acao, 'zona-inativa')
+  assert.match(d.supportId, /^[0-9a-f-]{36}$/)
+  assert.ok(d.html.includes(`data-support-id="${d.supportId}"`), 'a pagina mostra o supportId')
+  assert.deepEqual(linhas, [`[zona] zona1: motivo=sonda codigo=ERRO_INTERNO supportId=${d.supportId}`])
+})
+
 test('C3: mapa vazio e caminho com forma de zona da 503 com a pagina da base e supportId, nao 404', async () => {
   const vazio = mapaFixo([])
   for (const caminho of ['/zona1', '/zona1/x', '/ZONA1/x', '/zona1-static/a.js', '/qualquer-coisa']) {

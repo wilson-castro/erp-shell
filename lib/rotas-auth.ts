@@ -17,11 +17,12 @@ export type FalhaDoNucleo = Parameters<NonNullable<ConfigDoNucleoDoShell['regist
 /**
  * Falha de zona no gateway ou no proxy (C3): a zona, o motivo, o código e o `supportId` que a página da
  * base mostra. `teto`: sem cabeçalhos dentro de `ERP_ZONA_TETO_MS`; `conexao`: a zona recusou ou caiu antes
- * dos cabeçalhos; `ociosidade`: resposta parada depois do primeiro byte; `mapa-vazio`: sem fonte nem guarda.
+ * dos cabeçalhos; `ociosidade`: resposta parada depois do primeiro byte; `mapa-vazio`: sem fonte nem guarda; `sonda`: a sonda de saúde
+ * deu a zona como fora.
  */
 export type FalhaDeZona = {
   zona: string
-  motivo: 'teto' | 'conexao' | 'ociosidade' | 'mapa-vazio'
+  motivo: 'teto' | 'conexao' | 'ociosidade' | 'mapa-vazio' | 'sonda'
   codigo: 'ERRO_INTERNO'
   supportId: string
 }
