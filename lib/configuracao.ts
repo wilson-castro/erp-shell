@@ -68,3 +68,13 @@ export function lerOrigensPermitidas(env: NodeJS.ProcessEnv = process.env): stri
 export function lerTokenDeServico(env: NodeJS.ProcessEnv = process.env): string | undefined {
   return env.ERP_TOKEN_SERVICO || (env.NODE_ENV !== 'production' ? 'svc.shell' : undefined)
 }
+
+/** Em produção o mapa vivo não tem token padrão: sem `ERP_TOKEN_SERVICO` o shell não sobe (mapa vazio silencioso seria 503 em toda zona). */
+export function exigirTokenDeServico(env: NodeJS.ProcessEnv = process.env): void {
+  if (!lerTokenDeServico(env)) throw new Error('configuracao invalida: ERP_TOKEN_SERVICO e obrigatoria em producao (token do shell para o mapa de zonas)')
+}
+
+/** Prazo das chamadas ao domínio e à guarda do mapa (`ERP_DESTINO_TIMEOUT_MS`, padrão 5 s, teto 60 s; mesmo do núcleo). */
+export function lerTimeoutDeDestino(env: NodeJS.ProcessEnv = process.env): number {
+  return lerNumeroPositivo(env.ERP_DESTINO_TIMEOUT_MS, 5_000, 'ERP_DESTINO_TIMEOUT_MS', 60_000)
+}

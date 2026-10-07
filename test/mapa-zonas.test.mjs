@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { criarMapaDeZonas, origemPermitida } from '../lib/mapa-zonas.ts'
-import { lerOrigensPermitidas, lerTtlDoMapaDeZonas, lerTokenDeServico } from '../lib/configuracao.ts'
+import { exigirTokenDeServico, lerOrigensPermitidas, lerTtlDoMapaDeZonas, lerTokenDeServico } from '../lib/configuracao.ts'
 
 const PERMITIDAS = ['127.0.0.1:*', 'localhost:*']
 const entrada = (id, porta = 4001, host = '127.0.0.1') => ({ id, origem: `http://${host}:${porta}` })
@@ -172,4 +172,25 @@ test('configuracao: origens permitidas, TTL e token de servico', () => {
   assert.equal(lerTokenDeServico({}), 'svc.shell')
   assert.equal(lerTokenDeServico({ NODE_ENV: 'production' }), undefined)
   assert.equal(lerTokenDeServico({ NODE_ENV: 'production', ERP_TOKEN_SERVICO: 'x' }), 'x')
+  assert.throws(() => exigirTokenDeServico({ NODE_ENV: 'production' }), /ERP_TOKEN_SERVICO/)
+  assert.doesNotThrow(() => exigirTokenDeServico({ NODE_ENV: 'production', ERP_TOKEN_SERVICO: 'x' }))
+})
+
+const pendurada = () => new Promise(() => {})
+
+test('guarda pendurada: boot frio com fonte boa devolve o mapa sem esperar a gravacao', async () => {
+  const { mapa } = ambiente({ fonte: async () => [entrada('a')], guarda: { ler: pendurada, gravar: pendurada } })
+  const r = await Promise.race([mapa.zonas(), new Promise((ok) => setTimeout(() => ok('travou'), 500))])
+  assert.deepEqual(ids(r), ['a'])
+})
+
+test('guarda pendurada: boot frio com fonte fora da mapa vazio dentro do prazo', async () => {
+  const falhas = []
+  const mapa = criarMapaDeZonas({
+    fonte: async () => { throw new Error('fora') }, guarda: { ler: pendurada, gravar: pendurada },
+    ttlMs: 1000, origensPermitidas: PERMITIDAS, timeoutGuardaMs: 30, registrarFalha: (m) => falhas.push(m),
+  })
+  const r = await Promise.race([mapa.zonas(), new Promise((ok) => setTimeout(() => ok('travou'), 1000))])
+  assert.deepEqual(r, [])
+  assert.ok(falhas.some((m) => m.includes('guarda')))
 })

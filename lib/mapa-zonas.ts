@@ -1,5 +1,5 @@
 import { ehRotaReservada } from './zonas.ts'
-import { lerOrigensPermitidas, lerTtlDoMapaDeZonas, lerValidadeDaGuardaDoMapa } from './configuracao.ts'
+import { exigirTokenDeServico, lerOrigensPermitidas, lerTimeoutDeDestino, lerTtlDoMapaDeZonas, lerValidadeDaGuardaDoMapa } from './configuracao.ts'
 
 /**
  * Mapa vivo de zonas (C3): quem é cada zona e onde ela está, lido da gestão de acesso
@@ -78,6 +78,8 @@ export function criarMapaDeZonas(cfg: {
   ttlMs: number
   origensPermitidas: readonly string[]
   agora?: () => number
+  /** Tempo máximo da leitura da guarda no boot frio (padrão 5000). */
+  timeoutGuardaMs?: number
   registrarFalha?: (motivo: string) => void
 }): MapaDeZonas {
   const agora = cfg.agora ?? Date.now
@@ -93,7 +95,11 @@ export function criarMapaDeZonas(cfg: {
       ultimo = Object.freeze(zonas)
       lidoEm = agora()
       // a guarda recebe o que a fonte devolveu, só do shell, a cada leitura boa
-      await cfg.guarda?.gravar(JSON.stringify(bruto)).catch((e: unknown) => registrar(`guarda nao gravou: ${mensagem(e)}`))
+      // fora do caminho crítico: Redis pendurado não pode segurar a leitura nem o voo único
+      if (cfg.guarda) {
+        const g = cfg.guarda
+        void Promise.resolve().then(() => g.gravar(JSON.stringify(bruto))).catch((e: unknown) => registrar(`guarda nao gravou: ${mensagem(e)}`))
+      }
       return
     } catch (e) {
       registrar(`fonte do mapa indisponivel ou invalida: ${mensagem(e)}`)
@@ -101,7 +107,7 @@ export function criarMapaDeZonas(cfg: {
     lidoEm = agora()
     if (ultimo !== null) return // fonte fora: segue o último mapa bom
     try {
-      const json = await cfg.guarda?.ler()
+      const json = cfg.guarda ? await comLimite(cfg.guarda.ler(), cfg.timeoutGuardaMs ?? 5000) : null
       ultimo = Object.freeze(json ? validarLista(JSON.parse(json), cfg.origensPermitidas, registrar) : [])
     } catch (e) {
       registrar(`guarda do mapa indisponivel ou invalida: ${mensagem(e)}`)
@@ -135,6 +141,13 @@ export function criarMapaDeZonas(cfg: {
   }
 }
 
+/** A promessa, ou erro se ela não resolver no prazo (Redis pendurado). */
+function comLimite<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  const prazo = new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error(`sem resposta em ${ms} ms`)), ms) })
+  return Promise.race([p, prazo]).finally(() => clearTimeout(timer))
+}
+
 const mensagem = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 const CHAVE_DA_GUARDA = 'erp:mapa-zonas'
@@ -162,12 +175,13 @@ function guardaDoShell(validadeS: number): GuardaDoMapa {
 
 /**
  * Instância do shell. A configuração é lida na criação (sem rede nem Redis): em produção, sem
- * `ERP_ZONAS_ORIGENS_PERMITIDAS`, o módulo falha ao carregar.
+ * `ERP_ZONAS_ORIGENS_PERMITIDAS` ou `ERP_TOKEN_SERVICO`, o módulo falha ao carregar.
  */
-export const mapaDeZonas: MapaDeZonas = criarMapaDeZonas({
+export const mapaDeZonas: MapaDeZonas = (exigirTokenDeServico(), criarMapaDeZonas({
   fonte: fonteDoShell,
   guarda: guardaDoShell(lerValidadeDaGuardaDoMapa()),
   ttlMs: lerTtlDoMapaDeZonas(),
   origensPermitidas: lerOrigensPermitidas(),
+  timeoutGuardaMs: lerTimeoutDeDestino(),
   registrarFalha: (m) => console.error(`[mapa-zonas] ${m}`),
-})
+}))
