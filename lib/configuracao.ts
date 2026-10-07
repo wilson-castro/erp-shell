@@ -23,10 +23,11 @@ export function lerHostsDoShell(valor: string | undefined = process.env.SHELL_HO
 }
 
 /**
- * Teto de silêncio de uma zona, em ms (`ERP_ZONA_TETO_MS`, docs/CONFIGURACAO.md §2; padrão 10 s, decisão B1). Vira o
- * `experimental.proxyTimeout` do Next: a resposta repassada é cortada quando a zona passa esse tempo **sem mandar nenhum
- * byte** (inatividade do socket, não duração; streaming que segue mandando dados não é cortado). Tem de passar o timeout
- * de domínio: senão a página que espera um domínio lento seria cortada antes de degradar (D7).
+ * Teto de uma zona, em ms (`ERP_ZONA_TETO_MS`, docs/CONFIGURACAO.md §2; padrão 10 s, decisão B1). Dois usos (ADR-0015,
+ * decisão 7): no gateway de documento conta até os **cabeçalhos** da zona chegarem e, no estouro, o shell responde a
+ * página da base com `supportId`; no caminho rápido (RSC, Server Action, estático) vira o `experimental.proxyTimeout`
+ * do Next, que corta a resposta quando a zona passa esse tempo **sem mandar nenhum byte**. Tem de passar o timeout de
+ * domínio: senão a página que espera um domínio lento seria cortada antes de degradar (D7).
  */
 export function lerTetoDaZona(env: NodeJS.ProcessEnv = process.env): number {
   const teto = lerNumeroPositivo(env.ERP_ZONA_TETO_MS, 10_000, 'ERP_ZONA_TETO_MS', 120_000)
@@ -77,4 +78,37 @@ export function exigirTokenDeServico(env: NodeJS.ProcessEnv = process.env): void
 /** Prazo das chamadas ao domínio e à guarda do mapa (`ERP_DESTINO_TIMEOUT_MS`, padrão 5 s, teto 60 s; mesmo do núcleo). */
 export function lerTimeoutDeDestino(env: NodeJS.ProcessEnv = process.env): number {
   return lerNumeroPositivo(env.ERP_DESTINO_TIMEOUT_MS, 5_000, 'ERP_DESTINO_TIMEOUT_MS', 60_000)
+}
+
+/**
+ * Intervalo da nova tentativa quando o mapa está VAZIO por falha (fonte e guarda fora, típico no boot frio com a
+ * gestão de acesso ainda subindo): `ERP_MAPA_ZONAS_RETENTATIVA_MS`, padrão 1 s, teto 30 s. Com o mapa bom em mãos,
+ * o prazo é o TTL; sem nenhum, esperar o TTL inteiro daria 503 a toda zona por até 30 s depois de uma falha passageira.
+ */
+export function lerRetentativaDoMapaVazio(env: NodeJS.ProcessEnv = process.env): number {
+  return lerNumeroPositivo(env.ERP_MAPA_ZONAS_RETENTATIVA_MS, 1_000, 'ERP_MAPA_ZONAS_RETENTATIVA_MS', 30_000)
+}
+
+/**
+ * Silêncio máximo de uma resposta de zona DEPOIS do primeiro byte, no gateway de documento (`ERP_ZONA_OCIOSIDADE_MS`,
+ * padrão 10 s, teto 120 s). Estourou: a resposta é cortada sem página (o status já saiu). Limite declarado
+ * de qualquer repasse com streaming (ADR-0015, decisão 7).
+ */
+export function lerOciosidadeDaZona(env: NodeJS.ProcessEnv = process.env): number {
+  return lerNumeroPositivo(env.ERP_ZONA_OCIOSIDADE_MS, 10_000, 'ERP_ZONA_OCIOSIDADE_MS', 120_000)
+}
+
+/**
+ * Toda a configuração do roteamento de zona, lida de uma vez. Chamada no `register()` do `instrumentation.ts`, que roda
+ * no `next start` e não no `next build`: shell de produção mal configurado não sobe, em vez de falhar a cada requisição.
+ */
+export function verificarConfiguracaoDoShell(env: NodeJS.ProcessEnv = process.env): void {
+  exigirTokenDeServico(env)
+  lerOrigensPermitidas(env)
+  lerTtlDoMapaDeZonas(env)
+  lerRetentativaDoMapaVazio(env)
+  lerValidadeDaGuardaDoMapa(env)
+  lerTimeoutDeDestino(env)
+  lerTetoDaZona(env)
+  lerOciosidadeDaZona(env)
 }

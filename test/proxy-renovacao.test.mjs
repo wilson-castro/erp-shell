@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { decidirAcaoDoProxy } from '../lib/decisao-proxy.ts'
 import { criarCacheSaudeZona } from '../lib/saude-zonas.ts'
 import { STORES, sessaoVencendo, identidadeContada, nucleoDoShell, ateQue } from './apoio-auth.mjs'
+import { mapaFixo, segue } from './apoio-mapa.mjs'
 
 /** Páginas do próprio shell (ramo 4 da decisão): `/` e outra qualquer que não é pública nem de zona. */
 const PAGINAS_DO_SHELL = ['/', '/preferencias']
@@ -16,7 +17,7 @@ const zonaNoAr = () => criarCacheSaudeZona(1000, 500, async () => ({ status: 200
 const pedir = (nucleo, { caminho = '/zona1', idSessao = 's-1', metodo = 'GET' } = {}) =>
   decidirAcaoDoProxy(
     { caminho, temCookieSessao: idSessao !== undefined, idSessao, metodo },
-    zonaNoAr(), undefined, nucleo.sessao.renovarSessao,
+    zonaNoAr(), mapaFixo(), nucleo.sessao.renovarSessao,
   )
 
 for (const [nomeStore, criarStore] of Object.entries(STORES)) {
@@ -36,13 +37,13 @@ for (const [nomeStore, criarStore] of Object.entries(STORES)) {
     await ateQue(() => false, 20)
     assert.equal(prontas, 19, 'os perdedores do lock nao podem esperar a renovacao')
     assert.equal(idp.chamadas(), 1, 'exatamente uma ida ao IdP')
-    assert.ok(decisoes.filter(Boolean).every((d) => d.acao === 'prosseguir' && !d.limparSessao))
+    assert.ok(decisoes.filter(Boolean).every((d) => segue(d) && !d.limparSessao))
     assert.equal((await store.leitor.ler('s-1')).accessToken, 'antigo.ana', 'antes do IdP responder, a sessao e a de antes')
 
     idp.liberar()
     await Promise.all(todas)
     assert.equal(idp.chamadas(), 1)
-    assert.ok(decisoes.every((d) => d.acao === 'prosseguir' && !d.limparSessao))
+    assert.ok(decisoes.every((d) => segue(d) && !d.limparSessao))
     assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o vencedor gravou o token novo')
   })
 
@@ -60,7 +61,7 @@ for (const [nomeStore, criarStore] of Object.entries(STORES)) {
 
       const decisoes = await Promise.all(Array.from({ length: 5 }, () => pedir(nucleo, { caminho: caminhoDoShell })))
       assert.equal(idp.chamadas(), 1, 'a pagina do shell renova no proxy, uma vez')
-      assert.ok(decisoes.every((d) => d.acao === 'prosseguir' && !d.limparSessao))
+      assert.ok(decisoes.every((d) => segue(d) && !d.limparSessao))
       assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o token novo foi gravado')
     })
 
@@ -107,7 +108,8 @@ test('revogada numa Server Action (POST): segue sem redirecionar, para a camada 
   const idp = identidadeContada({ resultado: 'revogada' })
   idp.liberar()
   const d = await pedir(nucleoDoShell(store, idp.identidade), { caminho: '/zona2', metodo: 'POST' })
-  assert.equal(d.acao, 'prosseguir')
+  // POST de zona vai pelo caminho rápido (só documento vai pelo gateway)
+  assert.equal(d.acao, 'zona-rapida')
   assert.equal(d.limparSessao, true)
 })
 
@@ -131,7 +133,7 @@ test('rotas publicas, telemetria e estaticos de zona nao renovam', async () => {
   let chamadas = 0
   const renovar = async () => { chamadas++; return 'revogada' }
   for (const caminho of ['/login', '/api/auth/retorno', '/api/otel/v1/traces', '/zona1-static/x.js']) {
-    const d = await decidirAcaoDoProxy({ caminho, temCookieSessao: true, idSessao: 's-1', metodo: 'GET' }, zonaNoAr(), undefined, renovar)
+    const d = await decidirAcaoDoProxy({ caminho, temCookieSessao: true, idSessao: 's-1', metodo: 'GET' }, zonaNoAr(), mapaFixo(), renovar)
     assert.notEqual(d.acao, 'redirecionar-login', caminho)
   }
   assert.equal(chamadas, 0)
@@ -156,7 +158,7 @@ for (const [nomeStore, criarStore] of Object.entries(STORES)) {
     idp.liberar()
     const decisoes = await Promise.all(todas)
     assert.equal(idp.chamadas(), 1, 'exatamente uma ida ao IdP')
-    assert.ok(decisoes.every((d) => d.acao === 'prosseguir' && !d.limparSessao), JSON.stringify(decisoes))
+    assert.ok(decisoes.every((d) => segue(d) && !d.limparSessao), JSON.stringify(decisoes))
     assert.equal((await store.leitor.ler('s-1')).accessToken, 'novo.ana', 'o vencedor gravou o token novo')
   })
 }
@@ -190,7 +192,7 @@ for (const [nomeStore, criarStore] of Object.entries(STORES)) {
         const inicio = Date.now()
         const d = await pedir(nucleoDoShell({ leitor, escritor: store.escritor }, idp.identidade), { caminho })
         assert.equal(leituras, falharNa, 'a falha nao aconteceu no momento pedido')
-        assert.equal(d.acao, 'prosseguir', `${caminho}: ${JSON.stringify(d)}`)
+        assert.ok(segue(d), `${caminho}: ${JSON.stringify(d)}`)
         assert.equal(d.limparSessao, undefined, `${caminho}: erro do store apagou o cookie`)
         assert.ok(Date.now() - inicio < 1_000, 'esperou o teto em vez de propagar o erro')
         assert.equal(idp.chamadas(), 0, 'chamou o IdP sem ter lido a sessao')

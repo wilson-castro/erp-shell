@@ -1,5 +1,8 @@
-import mapa from '../zonas.json' with { type: 'json' }
-
+/**
+ * Regras de caminho do shell que não dependem de onde cada zona está. Quem é cada zona e onde ela
+ * está vem do mapa vivo (`lib/mapa-zonas.ts`, ADR-0015); aqui ficam só as rotas que nenhuma zona
+ * pode tomar e as formas de caminho que o proxy e o gateway reconhecem.
+ */
 export const ROTAS_RESERVADAS = [
   '/',
   '/login',
@@ -8,15 +11,9 @@ export const ROTAS_RESERVADAS = [
   '/api/auth',
   '/api/otel',
   '/api/stream',
+  // rota interna do gateway de documento (C3): o proxy reescreve para ela; do navegador, é 404
+  '/_gateway',
 ] as const
-
-export interface DefinicaoDeZona {
-  readonly id: string
-  readonly origem: string
-  readonly prefixo: string
-  readonly prefixoEstatico: string
-  readonly urlSaude: string
-}
 
 export function ehRotaReservada(caminho: string): boolean {
   if (!caminho || caminho === '/') return true
@@ -29,71 +26,34 @@ export function ehRotaReservada(caminho: string): boolean {
   )
 }
 
-export function carregarZonas(
-  mapaEntrada: Record<string, string>,
-  env: NodeJS.ProcessEnv = process.env
-): readonly DefinicaoDeZona[] {
-  const zonasValidas: DefinicaoDeZona[] = []
+/** Formato do id de zona (o mesmo que o mapa exige). */
+export const FORMATO_DO_ID_DE_ZONA = /^[a-z0-9][a-z0-9-]*$/
 
-  for (const [id, origemPadrao] of Object.entries(mapaEntrada)) {
-    // Só minúsculas, dígitos e hífen: a busca de zona compara o caminho em minúsculas, e um id
-    // com maiúscula nunca casaria, deixando o caminho sem sonda (reviewer_shell_2). Falha no
-    // boot, não na requisição.
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
-      throw new Error(`zonas.json: id de zona invalido "${id}" (use minusculas, digitos e hifen)`)
-    }
-    if (ehRotaReservada(`/${id}`)) {
-      continue
-    }
-
-    const envOrigem = env[`ZONA_${id.toUpperCase().replaceAll('-', '_')}_URL`]
-    const origem = envOrigem ?? origemPadrao
-    const envSaude = env[`ZONA_${id.toUpperCase().replaceAll('-', '_')}_HEALTH_URL`]
-    const urlSaude = envSaude ?? `${origem}/${id}/api/health`
-
-    zonasValidas.push({
-      id,
-      origem,
-      prefixo: `/${id}`,
-      prefixoEstatico: `/${id}-static`,
-      urlSaude,
-    })
-  }
-
-  return Object.freeze(zonasValidas)
-}
-
-export const ZONAS: readonly DefinicaoDeZona[] = carregarZonas(mapa)
-
-export const PREFIXOS_DE_ZONA: readonly string[] = ZONAS.flatMap(({ prefixo, prefixoEstatico }) => [
-  prefixo,
-  prefixoEstatico,
-])
-
-export function encontrarZonaPorCaminho(
-  caminho: string,
-  zonas: readonly DefinicaoDeZona[] = ZONAS
-): DefinicaoDeZona | null {
+/**
+ * O caminho tem forma de zona: o primeiro segmento, em minúsculas, está no formato do id e não é
+ * rota reservada. Com o mapa vazio (fonte e guarda fora), esse caminho recebe 503 com a página da
+ * base em vez de 404, para não esconder a queda da fonte (ADR-0015, decisão 6).
+ */
+export function temFormaDeZona(caminho: string): boolean {
   const semQuery = caminho.split('?')[0] ?? ''
-  // O rewrite do Next casa o prefixo sem diferenciar maiúsculas: /ZONA2 chega à zona 2. A
-  // busca aqui tem de casar igual, senão o caminho em outra caixa escapa da sonda (gate
-  // "Shell novo", challenger_shell_1 C1).
-  const normalizado = (semQuery.startsWith('/') ? semQuery : `/${semQuery}`).toLowerCase()
-  for (const zona of zonas) {
-    if (normalizado === zona.prefixo || normalizado.startsWith(`${zona.prefixo}/`)) {
-      return zona
-    }
-    if (normalizado === zona.prefixoEstatico || normalizado.startsWith(`${zona.prefixoEstatico}/`)) {
-      return zona
-    }
-  }
-  return null
+  const primeiro = (semQuery.startsWith('/') ? semQuery.slice(1) : semQuery).split('/')[0]?.toLowerCase() ?? ''
+  if (!FORMATO_DO_ID_DE_ZONA.test(primeiro)) return false
+  return !ehRotaReservada(`/${primeiro}`)
 }
 
-export function gerarRewrites(zonas: readonly DefinicaoDeZona[] = ZONAS) {
-  return zonas.flatMap(({ id, origem }) => [
-    { source: `/${id}`, destination: `${origem}/${id}` },
-    { source: `/${id}/:caminho*`, destination: `${origem}/${id}/:caminho*` },
-    { source: `/${id}-static/:caminho*`, destination: `${origem}/${id}-static/:caminho*` },
-  ])
+/** Segundo segmento `_fragmento`, em qualquer caixa. Decodifica antes: `%5Ffragmento` chega à zona como `_fragmento`. */
+const FRAGMENTO = /^\/[^/]+\/_fragmento(?:\/|$)/i
+/** `/{zona}/_fragmento/...` é composição servidor→servidor (ADR-0011, decisão 8): do navegador, não existe. */
+export function ehFragmento(caminho: string): boolean {
+  let decodificado = caminho
+  try { decodificado = decodeURIComponent(caminho) } catch { /* `%` solto: fica como veio */ }
+  return FRAGMENTO.test(decodificado)
+}
+
+/** `/_gateway` em qualquer caixa e grafia (`%5F`): rota interna, nunca alcançável pelo navegador. */
+const GATEWAY = /^\/_gateway(?:\/|$)/i
+export function ehRotaDoGateway(caminho: string): boolean {
+  let decodificado = caminho
+  try { decodificado = decodeURIComponent(caminho) } catch { /* idem */ }
+  return GATEWAY.test(decodificado) || GATEWAY.test(caminho)
 }

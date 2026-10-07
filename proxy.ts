@@ -3,6 +3,7 @@ import { garantirTraceparent } from '@erp/nucleo/proxy'
 import { cspDoShell } from './lib/csp'
 import { decidirAcaoDoProxy } from './lib/decisao-proxy'
 import { cacheSaudePadrao } from './lib/saude-zonas'
+import { mapaDeZonas } from './lib/mapa-zonas'
 import { NOME_COOKIE_SESSAO, apagarCookie } from './lib/cookies'
 import { nucleo } from './lib/nucleo'
 
@@ -14,8 +15,11 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
   // Renovação proativa (ADR-0013, decisão 4): toda requisição a zona ou página do shell passa aqui.
   // Lock, releitura e gravação ficam na fábrica do núcleo; o proxy só decide o que fazer com o resultado.
   const decisao = await decidirAcaoDoProxy(
-    { caminho, temCookieSessao, idSessao, metodo: req.method },
-    cacheSaudePadrao, undefined, nucleo.sessao.renovarSessao,
+    {
+      caminho, temCookieSessao, idSessao, metodo: req.method, busca: req.nextUrl.search,
+      rsc: req.headers.has('rsc'), acaoDoServidor: req.headers.has('next-action'),
+    },
+    cacheSaudePadrao, mapaDeZonas, nucleo.sessao.renovarSessao,
   )
 
   switch (decisao.acao) {
@@ -23,8 +27,15 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
       return aplicarCsp(req, decisao.nonce)
 
     case 'telemetria':
-    case 'zona-estatica':
       return NextResponse.next()
+
+    // C3 (ADR-0015): RSC, Server Action, outros métodos e estático vão direto à origem do mapa (caminho rápido)
+    case 'zona-rapida':
+      return semSessaoSe(decisao.limparSessao, NextResponse.rewrite(decisao.destino, { request: { headers: paraZona(req) } }))
+
+    // documento vai ao gateway interno; a reescrita para caminho interno não passa de novo por este proxy
+    case 'zona-documento':
+      return semSessaoSe(decisao.limparSessao, NextResponse.rewrite(new URL(decisao.caminhoInterno, req.url), { request: { headers: paraZona(req) } }))
     case 'nao-encontrado':
       return new NextResponse(null, { status: 404, headers: { 'cache-control': 'no-store' } })
 
@@ -42,6 +53,16 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
     case 'prosseguir':
       return semSessaoSe(decisao.limparSessao, aplicarCsp(req, decisao.nonce))
   }
+}
+
+/**
+ * Cabeçalhos da requisição que segue para uma zona: os do navegador e o `traceparent` desta requisição (núcleo 8).
+ * CSP, nonce e flash são da zona, que aplica o próprio proxy (`criarProxy`).
+ */
+function paraZona(req: NextRequest): Headers {
+  const headers = new Headers(req.headers)
+  headers.set('traceparent', garantirTraceparent(req.headers.get('traceparent')))
+  return headers
 }
 
 /** Sessão revogada ou ausente do store: o cookie que aponta para ela sai junto com a resposta. */

@@ -2,8 +2,18 @@ export const TITULO_ERRO_ZONA = 'Zona temporariamente indisponível'
 export const MENSAGEM_ERRO_ZONA = 'Não foi possível conectar a esta zona no momento. O processo da zona pode estar inativo ou reiniciando.'
 export const DICA_RETRY = 'Tente novamente em alguns instantes.'
 
-export function renderizarPaginaErroDeZona(idZona?: string): string {
-  const nomeZona = idZona ? `Zona "${idZona}"` : 'Zona'
+/** Só id de zona (formato do mapa) e `supportId` gerado pelo shell entram na página; o resto é texto fixo. */
+const SEGURO = /^[A-Za-z0-9_-]{1,64}$/
+
+/**
+ * Página de zona indisponível da base. Com `supportId` (invariante 12: o par `{ codigo, supportId }` e nada
+ * mais), a pessoa tem o que passar ao suporte e o mesmo id está no registro do shell.
+ */
+export function renderizarPaginaErroDeZona(idZona?: string, supportId?: string): string {
+  const nomeZona = idZona && SEGURO.test(idZona) ? `Zona "${idZona}"` : 'Zona'
+  const suporte = supportId && SEGURO.test(supportId)
+    ? `\n    <p data-codigo="ERRO_INTERNO" data-support-id="${supportId}">Código de suporte: ${supportId}</p>`
+    : ''
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -68,7 +78,7 @@ export function renderizarPaginaErroDeZona(idZona?: string): string {
     <div class="badge"><span class="dot"></span>${nomeZona} Offline</div>
     <h1>${TITULO_ERRO_ZONA}</h1>
     <p>${MENSAGEM_ERRO_ZONA}</p>
-    <p>${DICA_RETRY}</p>
+    <p>${DICA_RETRY}</p>${suporte}
     <p><a href="/">Voltar ao início</a></p>
   </div>
 </main>

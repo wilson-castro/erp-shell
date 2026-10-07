@@ -1,5 +1,9 @@
-import { ehRotaReservada } from './zonas.ts'
-import { exigirTokenDeServico, lerOrigensPermitidas, lerTimeoutDeDestino, lerTtlDoMapaDeZonas, lerValidadeDaGuardaDoMapa } from './configuracao.ts'
+import 'server-only'
+import { ehRotaReservada, FORMATO_DO_ID_DE_ZONA } from './zonas.ts'
+import {
+  exigirTokenDeServico, lerOrigensPermitidas, lerRetentativaDoMapaVazio, lerTimeoutDeDestino, lerTtlDoMapaDeZonas,
+  lerValidadeDaGuardaDoMapa,
+} from './configuracao.ts'
 
 /**
  * Mapa vivo de zonas (C3): quem é cada zona e onde ela está, lido da gestão de acesso
@@ -17,7 +21,7 @@ export type MapaDeZonas = {
   encontrar(caminho: string): Promise<ZonaDoMapa | null>
 }
 
-const FORMATO_DO_ID = /^[a-z0-9][a-z0-9-]*$/
+const FORMATO_DO_ID = FORMATO_DO_ID_DE_ZONA
 // só `http(s)://host[:porta]` com barra final opcional: sem credencial, caminho, query nem fragmento
 const FORMATO_DA_ORIGEM = /^https?:\/\/[^/?#\\@\s]+\/?$/i
 
@@ -76,6 +80,8 @@ export function criarMapaDeZonas(cfg: {
   fonte: FonteDoMapa
   guarda?: GuardaDoMapa
   ttlMs: number
+  /** Prazo da nova tentativa quando o mapa está vazio por falha (padrão: o próprio TTL). */
+  retentativaMs?: number | undefined
   origensPermitidas: readonly string[]
   agora?: () => number
   /** Tempo máximo da leitura da guarda no boot frio (padrão 5000). */
@@ -86,6 +92,9 @@ export function criarMapaDeZonas(cfg: {
   const registrar = cfg.registrarFalha ?? (() => {})
   let ultimo: readonly ZonaDoMapa[] | null = null
   let lidoEm = 0
+  // mapa vazio porque fonte e guarda falharam (não porque a fonte devolveu lista vazia): tenta de novo no
+  // intervalo curto, senão uma falha passageira no boot frio daria 503 a toda zona por um TTL inteiro
+  let vazioPorFalha = false
   let emVoo: Promise<void> | null = null
 
   async function carregar(): Promise<void> {
@@ -93,6 +102,7 @@ export function criarMapaDeZonas(cfg: {
       const bruto = await cfg.fonte()
       const zonas = validarLista(bruto, cfg.origensPermitidas, registrar)
       ultimo = Object.freeze(zonas)
+      vazioPorFalha = false
       lidoEm = agora()
       // a guarda recebe o que a fonte devolveu, só do shell, a cada leitura boa
       // fora do caminho crítico: Redis pendurado não pode segurar a leitura nem o voo único
@@ -105,7 +115,7 @@ export function criarMapaDeZonas(cfg: {
       registrar(`fonte do mapa indisponivel ou invalida: ${mensagem(e)}`)
     }
     lidoEm = agora()
-    if (ultimo !== null) return // fonte fora: segue o último mapa bom
+    if (ultimo !== null && !vazioPorFalha) return // fonte fora: segue o último mapa bom
     try {
       const json = cfg.guarda ? await comLimite(cfg.guarda.ler(), cfg.timeoutGuardaMs ?? 5000) : null
       ultimo = Object.freeze(json ? validarLista(JSON.parse(json), cfg.origensPermitidas, registrar) : [])
@@ -113,6 +123,8 @@ export function criarMapaDeZonas(cfg: {
       registrar(`guarda do mapa indisponivel ou invalida: ${mensagem(e)}`)
       ultimo = Object.freeze([])
     }
+    vazioPorFalha = ultimo.length === 0
+    lidoEm = agora()
   }
 
   const iniciar = (): Promise<void> => (emVoo ??= carregar().finally(() => { emVoo = null }))
@@ -120,7 +132,7 @@ export function criarMapaDeZonas(cfg: {
   async function zonas(): Promise<readonly ZonaDoMapa[]> {
     if (ultimo === null) {
       await iniciar()
-    } else if (agora() - lidoEm >= cfg.ttlMs) {
+    } else if (agora() - lidoEm >= (vazioPorFalha ? (cfg.retentativaMs ?? cfg.ttlMs) : cfg.ttlMs)) {
       void iniciar() // sem await: quem chega agora usa o último mapa bom
     }
     return ultimo ?? []
@@ -130,7 +142,7 @@ export function criarMapaDeZonas(cfg: {
     zonas,
     async encontrar(caminho) {
       const semQuery = caminho.split('?')[0] ?? ''
-      // o rewrite do Next casa o prefixo sem diferenciar maiúsculas (mesma regra de `encontrarZonaPorCaminho`)
+      // o Next casa rotas sem diferenciar maiúsculas no rewrite da zona: /ZONA2 tem de achar a zona 2 (senão escapa da sonda)
       const normalizado = (semQuery.startsWith('/') ? semQuery : `/${semQuery}`).toLowerCase()
       for (const z of await zonas()) {
         if (normalizado === z.prefixo || normalizado.startsWith(`${z.prefixo}/`)) return z
@@ -139,6 +151,18 @@ export function criarMapaDeZonas(cfg: {
       return null
     },
   }
+}
+
+/**
+ * O caminho como a zona o conhece: o prefixo (ou o prefixo estático) na grafia canônica, minúsculas, e o resto como
+ * veio. Era o que o `rewrites()` fazia (`/ZONA2/x` chegava à zona como `/zona2/x`). `caminho` já casou com `zona`.
+ */
+export function caminhoNaZona(zona: ZonaDoMapa, caminho: string): string {
+  const baixo = caminho.toLowerCase()
+  for (const p of [zona.prefixoEstatico, zona.prefixo]) {
+    if (baixo === p || baixo.startsWith(`${p}/`)) return p + caminho.slice(p.length)
+  }
+  return caminho
 }
 
 /** A promessa, ou erro se ela não resolver no prazo (Redis pendurado). */
@@ -174,14 +198,29 @@ function guardaDoShell(validadeS: number): GuardaDoMapa {
 }
 
 /**
- * Instância do shell. A configuração é lida na criação (sem rede nem Redis): em produção, sem
- * `ERP_ZONAS_ORIGENS_PERMITIDAS` ou `ERP_TOKEN_SERVICO`, o módulo falha ao carregar.
+ * Cria a instância do shell na primeira leitura, com a configuração lida nesse momento (e guardada). Uma por
+ * processo: o proxy e a rota do gateway são empacotados em separado pelo Next e teriam dois mapas (duas leituras,
+ * dois TTLs, o proxy mandando ao gateway uma zona que o mapa dele ainda não tem); a chave na global (tipo em
+ * `mapa-zonas.global.d.ts`) faz os dois usarem o mesmo.
  */
-export const mapaDeZonas: MapaDeZonas = (exigirTokenDeServico(), criarMapaDeZonas({
-  fonte: fonteDoShell,
-  guarda: guardaDoShell(lerValidadeDaGuardaDoMapa()),
-  ttlMs: lerTtlDoMapaDeZonas(),
-  origensPermitidas: lerOrigensPermitidas(),
-  timeoutGuardaMs: lerTimeoutDeDestino(),
-  registrarFalha: (m) => console.error(`[mapa-zonas] ${m}`),
-}))
+function instancia(): MapaDeZonas {
+  return (globalThis.__erpMapaDeZonas ??= (exigirTokenDeServico(), criarMapaDeZonas({
+    fonte: fonteDoShell,
+    guarda: guardaDoShell(lerValidadeDaGuardaDoMapa()),
+    ttlMs: lerTtlDoMapaDeZonas(),
+    retentativaMs: lerRetentativaDoMapaVazio(),
+    origensPermitidas: lerOrigensPermitidas(),
+    timeoutGuardaMs: lerTimeoutDeDestino(),
+    registrarFalha: (m) => console.error(`[mapa-zonas] ${m}`),
+  })))
+}
+
+/**
+ * Instância do shell, preguiçosa: importar o módulo não lê configuração (o `next build` também importa). A
+ * configuração é conferida na subida pelo `register()` do `instrumentation.ts` (`verificarConfiguracaoDoShell`):
+ * em produção, sem `ERP_ZONAS_ORIGENS_PERMITIDAS` ou `ERP_TOKEN_SERVICO`, o `next start` não sobe.
+ */
+export const mapaDeZonas: MapaDeZonas = {
+  zonas: async () => instancia().zonas(),
+  encontrar: async (caminho) => instancia().encontrar(caminho),
+}

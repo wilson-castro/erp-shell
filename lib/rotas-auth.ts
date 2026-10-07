@@ -14,6 +14,18 @@ export type FalhaDeAutenticacao = {
 /** Falha que o núcleo registra no servidor (hoje só `janela-de-renovacao`): motivo, código e `supportId`. */
 export type FalhaDoNucleo = Parameters<NonNullable<ConfigDoNucleoDoShell['registrarFalha']>>[0]
 
+/**
+ * Falha de zona no gateway ou no proxy (C3): a zona, o motivo, o código e o `supportId` que a página da
+ * base mostra. `teto`: sem cabeçalhos dentro de `ERP_ZONA_TETO_MS`; `conexao`: a zona recusou ou caiu antes
+ * dos cabeçalhos; `ociosidade`: resposta parada depois do primeiro byte; `mapa-vazio`: sem fonte nem guarda.
+ */
+export type FalhaDeZona = {
+  zona: string
+  motivo: 'teto' | 'conexao' | 'ociosidade' | 'mapa-vazio'
+  codigo: 'ERRO_INTERNO'
+  supportId: string
+}
+
 export type DependenciasDeAutenticacao = {
   sessao: Pick<NucleoDoShell['sessao'], 'iniciarLogin' | 'concluirLogin' | 'encerrarSessao'>
   registrarFalha?: (falha: FalhaDeAutenticacao) => void
@@ -50,10 +62,15 @@ function mesmaOrigem(req: Request, hostsDoShell: readonly string[]): boolean {
 }
 
 /**
- * O registrador do shell no servidor: uma linha, só a etapa (ou o motivo do núcleo), o código e o
- * `supportId`. Serve às rotas de autenticação e ao núcleo (`registrarFalha` em `lib/nucleo.ts`).
+ * O registrador do shell no servidor: uma linha, só a etapa (ou o motivo do núcleo, ou a zona e o motivo),
+ * o código e o `supportId`. Serve às rotas de autenticação, ao núcleo (`registrarFalha` em `lib/nucleo.ts`)
+ * e ao roteamento de zona (proxy e gateway).
  */
-export function registrarNoConsole(f: FalhaDeAutenticacao | FalhaDoNucleo): void {
+export function registrarNoConsole(f: FalhaDeAutenticacao | FalhaDoNucleo | FalhaDeZona): void {
+  if ('zona' in f) {
+    console.error(`[zona] ${f.zona}: motivo=${f.motivo} codigo=${f.codigo} supportId=${f.supportId}`)
+    return
+  }
   const onde = 'etapa' in f ? `${f.etapa} falhou:` : `renovacao: motivo=${f.motivo}`
   console.error(`[auth] ${onde} codigo=${f.codigo} supportId=${f.supportId}`)
 }

@@ -1,16 +1,19 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { criarMapaDeZonas, origemPermitida } from '../lib/mapa-zonas.ts'
-import { exigirTokenDeServico, lerOrigensPermitidas, lerTtlDoMapaDeZonas, lerTokenDeServico } from '../lib/configuracao.ts'
+import {
+  exigirTokenDeServico, lerOrigensPermitidas, lerTtlDoMapaDeZonas, lerTokenDeServico, lerRetentativaDoMapaVazio,
+  lerOciosidadeDaZona, verificarConfiguracaoDoShell,
+} from '../lib/configuracao.ts'
 
 const PERMITIDAS = ['127.0.0.1:*', 'localhost:*']
 const entrada = (id, porta = 4001, host = '127.0.0.1') => ({ id, origem: `http://${host}:${porta}` })
 
-function ambiente({ fonte, guarda, ttlMs = 1000, permitidas = PERMITIDAS } = {}) {
+function ambiente({ fonte, guarda, ttlMs = 1000, retentativaMs, permitidas = PERMITIDAS } = {}) {
   const relogio = { t: 0 }
   const falhas = []
   const mapa = criarMapaDeZonas({
-    fonte, guarda, ttlMs, origensPermitidas: permitidas,
+    fonte, guarda, ttlMs, retentativaMs, origensPermitidas: permitidas,
     agora: () => relogio.t, registrarFalha: (m) => falhas.push(m),
   })
   return { mapa, relogio, falhas }
@@ -193,4 +196,89 @@ test('guarda pendurada: boot frio com fonte fora da mapa vazio dentro do prazo',
   const r = await Promise.race([mapa.zonas(), new Promise((ok) => setTimeout(() => ok('travou'), 1000))])
   assert.deepEqual(r, [])
   assert.ok(falhas.some((m) => m.includes('guarda')))
+})
+
+// --- Task 4, itens levados da revisão da Task 3 ---
+test('mapa vazio por falha (fonte e guarda fora) tenta de novo no intervalo curto, nao no TTL inteiro', async () => {
+  let fora = true
+  let n = 0
+  const { mapa, relogio } = ambiente({
+    ttlMs: 30_000, retentativaMs: 1_000,
+    fonte: async () => { n++; if (fora) throw new Error('fora'); return [entrada('a')] },
+  })
+  assert.deepEqual(await mapa.zonas(), [])
+  fora = false
+  relogio.t = 999
+  assert.deepEqual(await mapa.zonas(), [])
+  assert.equal(n, 1, 'releu antes do intervalo')
+  relogio.t = 1_000
+  await mapa.zonas(); await solta(); await solta()
+  assert.equal(n, 2, 'nao releu no intervalo curto')
+  assert.deepEqual(ids(await mapa.zonas()), ['a'])
+  // com o mapa de volta, o prazo volta a ser o TTL
+  fora = true
+  relogio.t = 1_000 + 29_999
+  await mapa.zonas(); await solta()
+  assert.equal(n, 2)
+})
+
+test('mapa vazio por falha: cada nova tentativa tambem le a guarda (Redis pode voltar antes da fonte)', async () => {
+  let guardado = null
+  const { mapa, relogio } = ambiente({
+    ttlMs: 30_000, retentativaMs: 500,
+    fonte: async () => { throw new Error('fora') },
+    guarda: { ler: async () => guardado, gravar: async () => {} },
+  })
+  assert.deepEqual(await mapa.zonas(), [])
+  guardado = JSON.stringify([entrada('g')])
+  relogio.t = 500
+  await mapa.zonas(); await solta(); await solta()
+  assert.deepEqual(ids(await mapa.zonas()), ['g'])
+})
+
+test('dentes: com ultimo bom nao vazio e fonte fora, o prazo e o TTL, nao o intervalo curto', async () => {
+  let n = 0
+  const { mapa, relogio } = ambiente({
+    ttlMs: 30_000, retentativaMs: 1_000,
+    fonte: async () => { n++; if (n > 1) throw new Error('fora'); return [entrada('a')] },
+  })
+  await mapa.zonas()
+  relogio.t = 30_000
+  await mapa.zonas(); await solta(); await solta()
+  assert.equal(n, 2)
+  relogio.t = 31_000
+  await mapa.zonas(); await solta()
+  assert.equal(n, 2, 'com mapa bom a fonte fora nao e martelada no intervalo curto')
+  assert.deepEqual(ids(await mapa.zonas()), ['a'])
+})
+
+test('configuracao: intervalo do mapa vazio, ociosidade da zona e verificacao de subida', () => {
+  assert.equal(lerRetentativaDoMapaVazio({}), 1000)
+  assert.equal(lerRetentativaDoMapaVazio({ ERP_MAPA_ZONAS_RETENTATIVA_MS: '250' }), 250)
+  assert.throws(() => lerRetentativaDoMapaVazio({ ERP_MAPA_ZONAS_RETENTATIVA_MS: '30001' }), /ERP_MAPA_ZONAS_RETENTATIVA_MS/)
+  assert.throws(() => lerRetentativaDoMapaVazio({ ERP_MAPA_ZONAS_RETENTATIVA_MS: '0' }))
+  assert.equal(lerOciosidadeDaZona({}), 10000)
+  assert.equal(lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '3000' }), 3000)
+  assert.throws(() => lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '120001' }), /ERP_ZONA_OCIOSIDADE_MS/)
+  const prod = { NODE_ENV: 'production', ERP_TOKEN_SERVICO: 'svc.shell', ERP_ZONAS_ORIGENS_PERMITIDAS: '127.0.0.1:*' }
+  assert.doesNotThrow(() => verificarConfiguracaoDoShell(prod))
+  assert.throws(() => verificarConfiguracaoDoShell({ ...prod, ERP_ZONAS_ORIGENS_PERMITIDAS: undefined }), /ERP_ZONAS_ORIGENS_PERMITIDAS/)
+  assert.throws(() => verificarConfiguracaoDoShell({ ...prod, ERP_TOKEN_SERVICO: undefined }), /ERP_TOKEN_SERVICO/)
+  assert.throws(() => verificarConfiguracaoDoShell({ ...prod, ERP_ZONA_OCIOSIDADE_MS: 'x' }), /ERP_ZONA_OCIOSIDADE_MS/)
+  assert.throws(() => verificarConfiguracaoDoShell({ ...prod, ERP_MAPA_ZONAS_TTL_MS: '10' }), /ERP_MAPA_ZONAS_TTL_MS/)
+  assert.throws(() => verificarConfiguracaoDoShell({ ...prod, ERP_ZONA_TETO_MS: '1000' }), /ERP_ZONA_TETO_MS/)
+})
+
+test('instancia do shell e preguicosa: importar sem configuracao de producao nao lanca; a primeira leitura sim', async () => {
+  const antes = { ...process.env }
+  try {
+    process.env.NODE_ENV = 'production'
+    delete process.env.ERP_ZONAS_ORIGENS_PERMITIDAS
+    delete process.env.ERP_TOKEN_SERVICO
+    const m = await import('../lib/mapa-zonas.ts?producao-sem-configuracao')
+    await assert.rejects(m.mapaDeZonas.zonas(), /ERP_TOKEN_SERVICO|ERP_ZONAS_ORIGENS_PERMITIDAS/)
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in antes)) delete process.env[k]
+    Object.assign(process.env, antes)
+  }
 })

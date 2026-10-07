@@ -1,11 +1,11 @@
 # erp-shell
 
-O **shell**: a única porta de entrada do navegador. Faz o login (OIDC com PKCE, ou o de desenvolvimento sem `IDP_EMISSOR`), é o **único escritor da sessão** (inclusive a renovação proativa do token, no proxy), repassa cada prefixo de zona por rewrite, responde 503 quando uma zona cai e recebe a telemetria das zonas.
+O **shell**: a única porta de entrada do navegador. Faz o login (OIDC com PKCE, ou o de desenvolvimento sem `IDP_EMISSOR`), é o **único escritor da sessão** (inclusive a renovação proativa do token, no proxy), roteia cada prefixo de zona pelo mapa vivo (documento pelo gateway interno, o resto pelo rewrite do proxy), responde 503 com a página da base quando uma zona cai ou trava e recebe a telemetria das zonas.
 
 | | |
 |---|---|
 | Porta | `3000` (acessada pelo navegador **só via shell**, `http://localhost:3000`) |
-| Rotas | `/`, `/login`, `/login/dev` (só sem `IDP_EMISSOR`), `GET /api/auth/entrar`, `GET /api/auth/retorno`, `POST /api/auth/sair`, `/api/otel/v1/traces`, `/erro-de-zona`; e os prefixos das zonas (`zonas.json`) |
+| Rotas | `/`, `/login`, `/login/dev` (só sem `IDP_EMISSOR`), `GET /api/auth/entrar`, `GET /api/auth/retorno`, `POST /api/auth/sair`, `/api/otel/v1/traces`, `/erro-de-zona`; e os prefixos das zonas (mapa vivo, `GET /v2/zonas` da gestão de acesso); `/_gateway` é interna (404 do navegador) |
 | Chama | domínio `plataforma` (`:4004`) e `gestao-acesso` (`:4010`) — declarados em `lib/nucleo.ts` (registro de destinos) |
 | Depende de | `@erp/nucleo`, `@erp/moldura`, `@erp/contratos` (Verdaccio local `:4873`); `openid-client` (peer do `@erp/nucleo/shell`, usado só dentro do núcleo) |
 
@@ -27,7 +27,10 @@ no repositório principal, seção 4.1.
 | `lib/redis.ts` | cliente do store de sessão, usado só se `REDIS_URL` estiver definido (senão, arquivo) |
 | `acesso.manifesto.ts` | módulos, perfis e concessões desta aplicação (`pnpm registrar` envia) |
 | `proxy.ts` | camada 1: cookie de sessão, renovação proativa (`nucleo.sessao.renovarSessao`) e CSP |
-| `zonas.json` | mapa das zonas: id → origem. Rewrites, sonda de saúde e 503 saem daqui |
+| `lib/mapa-zonas.ts` | mapa vivo das zonas (ADR-0015): id → origem, lido da gestão de acesso com `svc.shell`, validado, com TTL e último mapa bom em memória e no Redis |
+| `lib/gateway-zona.ts`, `app/%5Fgateway/` | gateway de documento: repassa a navegação à zona com `node:http` e, no teto, responde a página da base com `supportId` |
+| `lib/zonas.ts` | rotas reservadas e formas de caminho (zona, fragmento, gateway) |
+| `instrumentation.ts`, `lib/subida.ts` | confere a configuração na subida do `next start` (não no `next build`); mal configurado, o shell não sobe |
 | `lib/decisao-proxy.ts` | o que o proxy decide, em ordem (função pura, testada) |
 | `test/` | `pnpm test`: decisão do proxy, renovação concorrente, rotas de autenticação, cliente Redis, sonda, mapa de zonas, telemetria |
 
