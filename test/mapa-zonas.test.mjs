@@ -265,7 +265,7 @@ test('configuracao: intervalo do mapa vazio, ociosidade da zona e verificacao de
   assert.throws(() => lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '3000' }), /maior que ERP_DESTINO_TIMEOUT_MS/)
   assert.throws(() => lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '8000', ERP_DESTINO_TIMEOUT_MS: '8000' }), /maior que ERP_DESTINO_TIMEOUT_MS \(8000\)/)
   assert.equal(lerOciosidadeDaZona({ ERP_ZONA_OCIOSIDADE_MS: '3000', ERP_DESTINO_TIMEOUT_MS: '2000' }), 3000)
-  const prod = { NODE_ENV: 'production', ERP_TOKEN_SERVICO: 'svc.shell', ERP_ZONAS_ORIGENS_PERMITIDAS: '127.0.0.1:*' }
+  const prod = { NODE_ENV: 'production', IDP_EMISSOR: 'https://idp.example/realm', ERP_TOKEN_SERVICO: 'svc.shell', ERP_ZONAS_ORIGENS_PERMITIDAS: '127.0.0.1:*' }
   assert.doesNotThrow(() => verificarConfiguracaoDoShell(prod))
   assert.throws(() => verificarConfiguracaoDoShell({ ...prod, ERP_ZONAS_ORIGENS_PERMITIDAS: undefined }), /ERP_ZONAS_ORIGENS_PERMITIDAS/)
   assert.throws(() => verificarConfiguracaoDoShell({ ...prod, ERP_TOKEN_SERVICO: undefined }), /ERP_TOKEN_SERVICO/)

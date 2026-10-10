@@ -109,6 +109,9 @@ export function lerOciosidadeDaZona(env: NodeJS.ProcessEnv = process.env): numbe
  * no `next start` e não no `next build`: shell de produção mal configurado não sobe, em vez de falhar a cada requisição.
  */
 export function verificarConfiguracaoDoShell(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.NODE_ENV === 'production' && !env.IDP_EMISSOR?.trim() && env.ERP_PERMITIR_IDENTIDADE_DEV !== '1') {
+    throw new Error('configuracao invalida: IDP_EMISSOR e obrigatorio em producao; identidade dev exige autorizacao explicita do showcase')
+  }
   exigirTokenDeServico(env)
   lerOrigensPermitidas(env)
   lerTtlDoMapaDeZonas(env)
