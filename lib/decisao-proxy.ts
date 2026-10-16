@@ -50,6 +50,8 @@ export interface ContextoRequisicaoProxy {
 
 /** `nucleo.sessao.renovarSessao` da fábrica do shell: lock, releitura, IdP e gravação ficam lá. */
 export type RenovarSessao = (id: string | undefined) => Promise<EstadoDaRenovacao>
+/** `revogacaoAtiva.sincronizarSePreciso`: consome `/v2/eventos` antes de validar a sessão (G5). */
+export type SincronizarEventos = () => Promise<void>
 
 /** `caminho` é `prefixo` ou está abaixo dele: `/api/otelx` não é `/api/otel` (auditor_shell_2, U6). */
 const noSegmento = (caminho: string, prefixo: string) => caminho === prefixo || caminho.startsWith(`${prefixo}/`)
@@ -102,8 +104,13 @@ function rotaDaZona(
  *   segura as idas ao IdP e cada requisição com o token vencido espera o teto antes de seguir.
  */
 async function renovarAntesDeSeguir(
-  contexto: ContextoRequisicaoProxy, renovar: RenovarSessao | undefined,
+  contexto: ContextoRequisicaoProxy,
+  renovar: RenovarSessao | undefined,
+  sincronizarEventos?: SincronizarEventos,
 ): Promise<{ readonly acao: 'redirecionar-login'; readonly destino: string; readonly limparSessao: true } | { readonly segue: true; readonly limparSessao?: true }> {
+  if (sincronizarEventos) {
+    try { await sincronizarEventos() } catch { /* falha de sincronização não derruba a requisição */ }
+  }
   if (!renovar) return { segue: true }
   let estado: EstadoDaRenovacao
   try {
@@ -120,9 +127,12 @@ async function renovarAntesDeSeguir(
 }
 
 async function prosseguirComRenovacao(
-  contexto: ContextoRequisicaoProxy, renovar: RenovarSessao | undefined, nonce: string,
+  contexto: ContextoRequisicaoProxy,
+  renovar: RenovarSessao | undefined,
+  nonce: string,
+  sincronizarEventos?: SincronizarEventos,
 ): Promise<DecisaoProxy> {
-  const r = await renovarAntesDeSeguir(contexto, renovar)
+  const r = await renovarAntesDeSeguir(contexto, renovar, sincronizarEventos)
   if ('acao' in r) return r
   return r.limparSessao ? { acao: 'prosseguir', nonce, limparSessao: true } : { acao: 'prosseguir', nonce }
 }
@@ -146,7 +156,8 @@ export async function decidirAcaoDoProxy(
   contexto: ContextoRequisicaoProxy,
   cacheSaude: CacheSaudeZona = cacheSaudePadrao,
   mapa: MapaDeZonas,
-  renovar?: RenovarSessao
+  renovar?: RenovarSessao,
+  sincronizarEventos?: SincronizarEventos,
 ): Promise<DecisaoProxy> {
   const { caminho, temCookieSessao } = contexto
   const nonce = crypto.randomUUID().replaceAll('-', '')
@@ -200,7 +211,7 @@ export async function decidirAcaoDoProxy(
       return { acao: 'redirecionar-login', destino: paraLogin(caminho) }
     }
 
-    const r = await renovarAntesDeSeguir(contexto, renovar)
+    const r = await renovarAntesDeSeguir(contexto, renovar, sincronizarEventos)
     if ('acao' in r) return r
     return rotaDaZona(zona, contexto, r.limparSessao)
   }
@@ -216,5 +227,5 @@ export async function decidirAcaoDoProxy(
     return { acao: 'redirecionar-login', destino: paraLogin(caminho) }
   }
 
-  return prosseguirComRenovacao(contexto, renovar, nonce)
+  return prosseguirComRenovacao(contexto, renovar, nonce, sincronizarEventos)
 }

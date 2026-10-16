@@ -4,6 +4,7 @@ import { cspDoShell } from './lib/csp'
 import { decidirAcaoDoProxy } from './lib/decisao-proxy'
 import { cacheSaudePadrao } from './lib/saude-zonas'
 import { mapaDeZonas } from './lib/mapa-zonas'
+import { revogacaoAtiva } from './lib/revogacao-ativa'
 import { NOME_COOKIE_SESSAO, apagarCookie } from './lib/cookies'
 import { nucleo } from './lib/nucleo'
 
@@ -12,14 +13,14 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
   const idSessao = req.cookies.get(NOME_COOKIE_SESSAO)?.value
   const temCookieSessao = req.cookies.has(NOME_COOKIE_SESSAO)
 
-  // Renovação proativa (ADR-0013, decisão 4): toda requisição a zona ou página do shell passa aqui.
+  // Renovação proativa (ADR-0013, decisão 4) e revogação ativa (G5, ADR-0014): toda requisição a zona ou página do shell passa aqui.
   // Lock, releitura e gravação ficam na fábrica do núcleo; o proxy só decide o que fazer com o resultado.
   const decisao = await decidirAcaoDoProxy(
     {
       caminho, temCookieSessao, idSessao, metodo: req.method, busca: req.nextUrl.search,
       rsc: req.headers.has('rsc'), acaoDoServidor: req.headers.has('next-action'),
     },
-    cacheSaudePadrao, mapaDeZonas, nucleo.sessao.renovarSessao,
+    cacheSaudePadrao, mapaDeZonas, nucleo.sessao.renovarSessao, revogacaoAtiva.sincronizarSePreciso,
   )
 
   switch (decisao.acao) {
