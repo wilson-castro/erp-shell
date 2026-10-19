@@ -105,8 +105,37 @@ export function lerOciosidadeDaZona(env: NodeJS.ProcessEnv = process.env): numbe
 }
 
 /**
- * Toda a configuração do roteamento de zona, lida de uma vez. Chamada no `register()` do `instrumentation.ts`, que roda
- * no `next start` e não no `next build`: shell de produção mal configurado não sobe, em vez de falhar a cada requisição.
+ * Intervalo mínimo entre leituras de `/v2/eventos` pelo shell (`ERP_EVENTOS_ACESSO_INTERVALO_MS`,
+ * docs/CONFIGURACAO.md §2; padrão 5 s, mínimo 100 ms, teto 60 s).
+ */
+export function lerIntervaloDeEventos(env: NodeJS.ProcessEnv = process.env): number {
+  const ms = lerNumeroPositivo(env.ERP_EVENTOS_ACESSO_INTERVALO_MS, 5_000, 'ERP_EVENTOS_ACESSO_INTERVALO_MS', 60_000)
+  if (ms < 100) {
+    throw new Error(`configuracao invalida: ERP_EVENTOS_ACESSO_INTERVALO_MS deve ser no minimo 100, recebeu "${env.ERP_EVENTOS_ACESSO_INTERVALO_MS}"`)
+  }
+  return ms
+}
+
+/**
+ * TTL do lock distribuído da leitura de `/v2/eventos` (`ERP_EVENTOS_ACESSO_LOCK_MS`,
+ * docs/CONFIGURACAO.md §2; padrão 10 s, mínimo 1 s, teto 120 s; maior que `ERP_EVENTOS_ACESSO_INTERVALO_MS`).
+ */
+export function lerLockDeEventos(env: NodeJS.ProcessEnv = process.env): number {
+  const ms = lerNumeroPositivo(env.ERP_EVENTOS_ACESSO_LOCK_MS, 10_000, 'ERP_EVENTOS_ACESSO_LOCK_MS', 120_000)
+  if (ms < 1000) {
+    throw new Error(`configuracao invalida: ERP_EVENTOS_ACESSO_LOCK_MS deve ser no minimo 1000, recebeu "${env.ERP_EVENTOS_ACESSO_LOCK_MS}"`)
+  }
+  const intervalo = lerIntervaloDeEventos(env)
+  if (ms <= intervalo) {
+    throw new Error(`configuracao invalida: ERP_EVENTOS_ACESSO_LOCK_MS (${ms}) deve ser maior que ERP_EVENTOS_ACESSO_INTERVALO_MS (${intervalo})`)
+  }
+  return ms
+}
+
+/**
+ * Toda a configuração do roteamento de zona e da revogação ativa, lida de uma vez. Chamada no `register()` do
+ * `instrumentation.ts`, que roda no `next start` e não no `next build`: shell de produção mal configurado não sobe,
+ * em vez de falhar a cada requisição.
  */
 export function verificarConfiguracaoDoShell(env: NodeJS.ProcessEnv = process.env): void {
   if (env.NODE_ENV === 'production' && !env.IDP_EMISSOR?.trim() && env.ERP_PERMITIR_IDENTIDADE_DEV !== '1') {
@@ -120,4 +149,6 @@ export function verificarConfiguracaoDoShell(env: NodeJS.ProcessEnv = process.en
   lerTimeoutDeDestino(env)
   lerTetoDaZona(env)
   lerOciosidadeDaZona(env)
+  lerIntervaloDeEventos(env)
+  lerLockDeEventos(env)
 }

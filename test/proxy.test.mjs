@@ -222,3 +222,38 @@ test('C3: renovacao vem antes da escolha do caminho; sessao revogada em document
   assert.equal(p.acao, 'zona-rapida')
   assert.equal(p.limparSessao, true)
 })
+
+test('G5: sincronizarEventos roda antes de renovarSessao nas rotas autenticadas (zona e shell), e nao roda sem cookie ou em publico', async () => {
+  const ordem = []
+  let sessaoViva = true
+  const sincronizar = async () => {
+    ordem.push('sincronizar')
+    sessaoViva = false
+  }
+  const renovar = async () => {
+    ordem.push('renovar')
+    return sessaoViva ? 'em-dia' : 'ausente'
+  }
+
+  const dZona = await decidirAcaoDoProxy(
+    { caminho: '/zona1', temCookieSessao: true, idSessao: 's-1', metodo: 'GET' },
+    sondaOk(), mapaFixo(), renovar, sincronizar,
+  )
+  assert.deepEqual(ordem, ['sincronizar', 'renovar'])
+  assert.deepEqual(dZona, { acao: 'redirecionar-login', destino: '/login?de=%2Fzona1', limparSessao: true })
+
+  ordem.length = 0
+  sessaoViva = true
+  const dShell = await decidirAcaoDoProxy(
+    { caminho: '/', temCookieSessao: true, idSessao: 's-1', metodo: 'GET' },
+    sondaOk(), mapaFixo(), renovar, sincronizar,
+  )
+  assert.deepEqual(ordem, ['sincronizar', 'renovar'])
+  assert.deepEqual(dShell, { acao: 'redirecionar-login', destino: '/login?de=%2F', limparSessao: true })
+
+  ordem.length = 0
+  await decidirAcaoDoProxy({ caminho: '/login', temCookieSessao: false }, sondaOk(), mapaFixo(), renovar, sincronizar)
+  await decidirAcaoDoProxy({ caminho: '/zona1', temCookieSessao: false }, sondaOk(), mapaFixo(), renovar, sincronizar)
+  await decidirAcaoDoProxy({ caminho: '/zona1-static/_next/a.js', temCookieSessao: true }, sondaOk(), mapaFixo(), renovar, sincronizar)
+  assert.deepEqual(ordem, [])
+})

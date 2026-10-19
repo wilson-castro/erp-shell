@@ -70,6 +70,11 @@ export const nucleo = criarNucleoDoShell({
       origem: process.env.ACESSO_URL ?? 'http://127.0.0.1:4020',
       caminhos: ['/v2/zonas'], metodos: ['GET'], credencial: 'servico', timeoutMs: 2000,
     },
+    // eventos de revogação ativa (G5, ADR-0014): só `svc.shell` lê
+    'eventos-acesso': {
+      origem: process.env.ACESSO_URL ?? 'http://127.0.0.1:4020',
+      caminhos: ['/v2/eventos'], metodos: ['GET'], credencial: 'servico', timeoutMs: 2000,
+    },
     // Coletor OTLP: só existe se configurado. O gateway /api/otel repassa por aqui, não por
     // `fetch` direto, para o repasse ter allowlist, timeout e nenhum redirecionamento (N8).
     ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT

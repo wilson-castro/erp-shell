@@ -6,7 +6,7 @@ O **shell**: a única porta de entrada do navegador. Faz o login (OIDC com PKCE,
 |---|---|
 | Porta | `3000` (acessada pelo navegador **só via shell**, `http://localhost:3000`) |
 | Rotas | `/`, `/login`, `/login/dev` (só sem `IDP_EMISSOR`), `GET /api/auth/entrar`, `GET /api/auth/retorno`, `POST /api/auth/sair`, `/api/otel/v1/traces`, `/erro-de-zona`; e os prefixos das zonas (mapa vivo, `GET /v2/zonas` da gestão de acesso); `/_gateway` é interna (404 do navegador) |
-| Chama | domínio `plataforma` (`:4004`) e `gestao-acesso` (`:4010`) — declarados em `lib/nucleo.ts` (registro de destinos) |
+| Chama | domínio `plataforma` (`:4004`) e `gestao-acesso` (`:4020`) - declarados em `lib/nucleo.ts` (registro de destinos) |
 | Depende de | `@erp/nucleo`, `@erp/moldura`, `@erp/contratos` (Verdaccio local `:4873`); `openid-client` (peer do `@erp/nucleo/shell`, usado só dentro do núcleo) |
 
 ## Responsabilidades
